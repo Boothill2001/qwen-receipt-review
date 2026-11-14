@@ -2,9 +2,31 @@
 
 **A receipt extraction and human review workbench.** Qwen reads the scan, an independent OCR check looks for conflicting totals, and a reviewer can inspect the evidence before exporting JSON.
 
-[Full benchmark](#full-benchmark) · [Measured pilot](#measured-pilot) · [Review case](#review-case) · [Reproduce](docs/evaluation.md)
+[Try three recorded cases](#try-three-recorded-cases) · [Full benchmark](#full-benchmark) · [Review policy](docs/evaluation.md#field-level-review) · [Reproduce](docs/evaluation.md#reproduce)
 
-![Receipt Review showing a magnified OCR region and four editable fields. Qwen extracts 22.26 while the workbench flags conflicting OCR evidence.](assets/qwen-review.png)
+![Case replay showing a verified total of 23.80 and an incomplete address that passed the contextual gate.](assets/case-replay.png)
+
+## Try three recorded cases
+
+```bash
+python -m pip install -r requirements-review.txt
+python -m streamlit run review_app.py
+```
+
+The **Case replay** tab opens by default and runs on CPU with the assets in this repository. Choose a receipt and switch between gates A, B and C to see the decision, OCR region, Qwen response and SROIE label. These are saved Qwen GPU predictions. **Live extraction** runs live inference through local Ollama.
+
+| Receipt | What to inspect |
+| --- | --- |
+| `X51005677336` | Qwen matches all four labels. OCR surfaces conflicting amounts and holds the receipt. |
+| `X51006334927` | Qwen reads 6.04. The OCR line shows 6.40, so both evidence gates hold it. |
+| `X51005719857` | OCR supports 23.80. Gate C passes the receipt even though the address omits the shopping gallery. |
+
+<details>
+<summary>See a wrong total caught by OCR</summary>
+
+![OCR highlights 6.40 on the scan while Qwen predicts 6.04. The contextual gate sends the receipt to review.](assets/wrong-total-review.png)
+
+</details>
 
 ## Full benchmark
 
@@ -13,9 +35,9 @@ Qwen2.5-VL-7B-Instruct FP16 ran on two Tesla T4 GPUs. The Kaggle run verified th
 | Pipeline | Total | All four fields | Median extraction with legacy OCR gate |
 | --- | ---: | ---: | ---: |
 | Qwen2.5-VL-7B-Instruct FP16 | **328/337** | **185/337** | 10.59 s |
-| Tesseract + rules (Kaggle log) | 137/337 | 4/337 | 1.16 s |
+| Tesseract + rules | 137/337 | 4/337 | 1.16 s |
 
-The legacy OCR gate routed **288/337** Qwen predictions to review, including **158** that matched all four labels. Unclear OCR evidence was the most frequent flag (199 receipts). The contextual gate routed **261/337** to review and let **28** incorrect records through, compared with **22** for the legacy gate. Both routed **8 of 9** wrong totals to review. [Qwen aggregate report](docs/qwen-full-summary.json) · [Evaluation protocol](docs/evaluation.md)
+The legacy OCR gate routed **288/337** Qwen predictions to review, including **158** that matched all four labels. The contextual gate routed **261/337** to review and let **28** incorrect records through, compared with **22** for the legacy gate. Both routed **8 of 9** wrong totals to review. A total-only policy supported **82/337** totals, including **one wrong total**. It leaves the other three fields for verification. [Qwen report](docs/qwen-full-summary.json) · [Paired Tesseract report](docs/tesseract-kaggle-summary.json) · [Evaluation protocol](docs/evaluation.md)
 
 ## Measured pilot
 
@@ -34,7 +56,7 @@ The measured pilot Qwen path includes the independent OCR check. Pilot times are
 
 Receipt **X51005677336** has a pretax amount of **21.00**, GST of **1.26**, and a final total of **22.26**. The OCR baseline with dataset transcripts assigned **1.26** to the total field and passed format validation. Qwen extracted **22.26** and matched all four labels. The runtime OCR check still identified conflicting amount candidates, so the workbench kept the receipt in **Needs review**.
 
-This gate kept 15 of the 20 Qwen predictions for review. Of the five that passed, one still missed at least one field. That trade-off is visible in the report and gives a concrete next experiment: use OCR line context to distinguish final totals from tax summaries, then measure both review load and errors that get through on held-out data.
+The gate held 15 of the 20 pilot predictions. One of the five that passed still missed a field. The full benchmark measures this trade-off on all 337 receipts.
 
 ## Pipeline
 
@@ -75,12 +97,12 @@ python receipt_pipeline.py benchmark --archive work/sroie-kaggle.zip --method te
 python -m streamlit run review_app.py --server.address 127.0.0.1
 ```
 
-In **Benchmark**, select a cohort and report. For the screenshot case, choose Qwen, receipt `X51005677336`, then **Xem vùng Tổng tiền** (show total region). The UI labels are in Vietnamese. To use a different data directory, set `RECEIPT_REVIEW_WORK` to its path.
+In **Benchmark**, select a cohort and upload a row-level report from the full runner, or put it in `work/receipt-v2/`. To use a different data directory, set `RECEIPT_REVIEW_WORK` to its path.
 
-The **Đọc ảnh mới** tab uses local Ollama and expects `qwen2.5vl:7b` at `127.0.0.1:11434`. The published metrics were measured with the official FP16 checkpoint on Kaggle. Live Ollama inference is a separate optional path that still needs validation on the target machine.
+The **Live extraction** tab uses local Ollama and expects `qwen2.5vl:7b` at `127.0.0.1:11434`. The published metrics were measured with the official FP16 checkpoint on Kaggle. Live Ollama inference is a separate optional path that still needs validation on the target machine.
 
 ## Sources and scope
 
 [SROIE competition](https://arxiv.org/abs/2103.10213) · [Qwen2.5-VL model card](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct) · [Tesseract TSV documentation](https://tesseract-ocr.github.io/tessdoc/Command-Line-Usage.html)
 
-The repository contains code, illustrative screenshots from the public dataset, and aggregate evaluation reports. Download the source dataset separately. The notebook and summaries identify the exact checkpoint and cohort used for the pilot.
+The repository includes three SROIE sample scans and their recorded predictions for case replay. The full dataset is downloaded separately. Kaggle identifies the original ICDAR challenge organizers as the data source. [SROIE Kaggle data card](https://www.kaggle.com/datasets/urbikn/sroie-datasetv2)

@@ -1,0 +1,358 @@
+{
+  "provenance": {
+    "archive_sha256": "e4502ab884e5fe49e138673f16f6fa72ae0d5fa1d59a2b59a860a2d75e534844",
+    "model": "Qwen/Qwen2.5-VL-7B-Instruct",
+    "model_revision": "cc594898137f460bfe9f0759e9844b3ce807cfb5",
+    "prompt_version": "receipt-fields-v1",
+    "runtime": "transformers-fp16",
+    "source": "https://www.kaggle.com/datasets/urbikn/sroie-datasetv2",
+    "row_report_sha256": "02d6ef5d22829667753cc604d62924460b661921d2bed475bfe87c875167e6ea",
+    "documents": 337
+  },
+  "cases": [
+    {
+      "title": "Correct extraction held for review",
+      "lesson": "Qwen read 22.26 and matched all four fields. OCR offered two amounts from the tax summary, so both OCR gates held the receipt.",
+      "focus": "total",
+      "row": {
+        "key": "X51005677336",
+        "fields": {
+          "company": "SYARIKAT PERNIAGAAN GIN KEE",
+          "date": "27/01/2018",
+          "address": "NO 290, JALAN AIR PANAS, SETAPAK, 53200, KUALA LUMPUR.",
+          "total": "22.26"
+        },
+        "gold": {
+          "company": "SYARIKAT PERNIAGAAN GIN KEE",
+          "date": "27/01/2018",
+          "address": "NO 290, JALAN AIR PANAS, SETAPAK, 53200, KUALA LUMPUR.",
+          "total": "22.26"
+        },
+        "match": {
+          "company": true,
+          "date": true,
+          "address": true,
+          "total": true
+        },
+        "raw": "```json\n{\n  \"company\": \"SYARIKAT PERNIAGAAN GIN KEE\",\n  \"date\": \"27/01/2018\",\n  \"address\": \"NO 290, JALAN AIR PANAS, SETAPAK, 53200, KUALA LUMPUR.\",\n  \"total\": \"22.26\"\n}\n```",
+        "evidence": {
+          "reason": "TOTAL_EVIDENCE_CONFLICT",
+          "candidates": [
+            {
+              "text": "Total Sales (Excluding GST) :; 21.00",
+              "polygon": [
+                143,
+                1100,
+                761,
+                1100,
+                761,
+                1133,
+                143,
+                1133
+              ],
+              "confidence": 44.9,
+              "amount": "21.00"
+            },
+            {
+              "text": "Total : 21.00 1.26",
+              "polygon": [
+                304,
+                1694,
+                820,
+                1694,
+                820,
+                1724,
+                304,
+                1724
+              ],
+              "confidence": 89.3,
+              "amount": "21.00"
+            },
+            {
+              "text": "Total : 21.00 1.26",
+              "polygon": [
+                304,
+                1694,
+                820,
+                1694,
+                820,
+                1724,
+                304,
+                1724
+              ],
+              "confidence": 89.3,
+              "amount": "1.26"
+            }
+          ]
+        },
+        "contextual_evidence": {
+          "reason": "TOTAL_EVIDENCE_CONFLICT",
+          "candidates": [
+            {
+              "text": "Total : 21.00 1.26",
+              "polygon": [
+                304,
+                1694,
+                820,
+                1694,
+                820,
+                1724,
+                304,
+                1724
+              ],
+              "confidence": 89.3,
+              "amount": "21.00",
+              "tier": "generic"
+            },
+            {
+              "text": "Total : 21.00 1.26",
+              "polygon": [
+                304,
+                1694,
+                820,
+                1694,
+                820,
+                1724,
+                304,
+                1724
+              ],
+              "confidence": 89.3,
+              "amount": "1.26",
+              "tier": "generic"
+            }
+          ]
+        },
+        "gate_reasons": {
+          "A_format_only": [],
+          "B_legacy_ocr": [
+            "TOTAL_EVIDENCE_CONFLICT"
+          ],
+          "C_contextual_ocr": [
+            "TOTAL_EVIDENCE_CONFLICT"
+          ]
+        },
+        "latency_ms": 10571.302,
+        "timings_ms": {
+          "preprocess": 196.308,
+          "ocr": 980.969,
+          "inference": 9393.195,
+          "validation": 0.749,
+          "legacy_evidence": 0.081,
+          "context_evidence": 0.13,
+          "end_to_end_A": 9590.252,
+          "end_to_end_B": 10571.302,
+          "end_to_end_C": 10571.351,
+          "evaluation_wall": 10571.481
+        }
+      }
+    },
+    {
+      "title": "Wrong total caught by OCR",
+      "lesson": "Both OCR gates held the receipt. Qwen extracted 6.04 and the line labeled Total shows 6.40.",
+      "focus": "total",
+      "row": {
+        "key": "X51006334927",
+        "fields": {
+          "company": "BIRU PETROLEUM",
+          "date": "17/11/16",
+          "address": "KELANA JAYA, 47301 PETALING SELANGOR DARUL EHSAN.",
+          "total": "6.04"
+        },
+        "gold": {
+          "company": "BIRU PETROLEUM",
+          "date": "11/11/16",
+          "address": "KELANA JAYA. 47301 PETALING SELANGOR DARUL EHSAN.",
+          "total": "6.40"
+        },
+        "match": {
+          "company": true,
+          "date": false,
+          "address": false,
+          "total": false
+        },
+        "raw": "```json\n{\n  \"company\": \"BIRU PETROLEUM\",\n  \"date\": \"17/11/16\",\n  \"address\": \"KELANA JAYA, 47301 PETALING SELANGOR DARUL EHSAN.\",\n  \"total\": \"6.04\"\n}\n```",
+        "evidence": {
+          "reason": "TOTAL_EVIDENCE_MISMATCH",
+          "candidates": [
+            {
+              "text": "Total RM 6.40",
+              "polygon": [
+                82,
+                807,
+                619,
+                807,
+                619,
+                836,
+                82,
+                836
+              ],
+              "confidence": 84.2,
+              "amount": "6.40"
+            }
+          ]
+        },
+        "contextual_evidence": {
+          "reason": "TOTAL_EVIDENCE_MISMATCH",
+          "candidates": [
+            {
+              "text": "Total RM 6.40",
+              "polygon": [
+                82,
+                807,
+                619,
+                807,
+                619,
+                836,
+                82,
+                836
+              ],
+              "confidence": 84.2,
+              "amount": "6.40",
+              "tier": "generic"
+            }
+          ]
+        },
+        "gate_reasons": {
+          "A_format_only": [],
+          "B_legacy_ocr": [
+            "TOTAL_EVIDENCE_MISMATCH"
+          ],
+          "C_contextual_ocr": [
+            "TOTAL_EVIDENCE_MISMATCH"
+          ]
+        },
+        "latency_ms": 8691.947,
+        "timings_ms": {
+          "preprocess": 92.113,
+          "ocr": 600.397,
+          "inference": 7999.142,
+          "validation": 0.241,
+          "legacy_evidence": 0.054,
+          "context_evidence": 0.103,
+          "end_to_end_A": 8091.496,
+          "end_to_end_B": 8691.947,
+          "end_to_end_C": 8691.996,
+          "evaluation_wall": 8692.09
+        }
+      }
+    },
+    {
+      "title": "Correct total, incomplete address",
+      "lesson": "The contextual gate found 23.80 and passed the record. The address omitted PUBLIKA SHOPPING GALLERY.",
+      "focus": "address",
+      "row": {
+        "key": "X51005719857",
+        "fields": {
+          "company": "ALI BABA INTERNATIONAL SDN BHD",
+          "date": "19-02-2018",
+          "address": "Lot 26-27, Level G2, Jln Dutamas 1, Solaris Dutamas, 50480 KL.",
+          "total": "23.80"
+        },
+        "gold": {
+          "company": "ALI BABA INTERNATIONAL SDN BHD",
+          "date": "19-02-2018",
+          "address": "PUBLIKA SHOPPING GALLERY LOT 26-27 ,LEVEL G2,JLN DUTAMAS 1, SOLARIS DUTAMAS,50480 KL.",
+          "total": "23.80"
+        },
+        "match": {
+          "company": true,
+          "date": true,
+          "address": false,
+          "total": true
+        },
+        "raw": "```json\n{\n  \"company\": \"ALI BABA INTERNATIONAL SDN BHD\",\n  \"date\": \"19-02-2018\",\n  \"address\": \"Lot 26-27, Level G2, Jln Dutamas 1, Solaris Dutamas, 50480 KL.\",\n  \"total\": \"23.80\"\n}\n```",
+        "evidence": {
+          "reason": "TOTAL_EVIDENCE_CONFLICT",
+          "candidates": [
+            {
+              "text": "Total (Excluding GST): 20.40",
+              "polygon": [
+                48,
+                1210,
+                701,
+                1210,
+                701,
+                1247,
+                48,
+                1247
+              ],
+              "confidence": 93.7,
+              "amount": "20.40"
+            },
+            {
+              "text": "Total (Inclusive of GST): 23.79",
+              "polygon": [
+                48,
+                1329,
+                701,
+                1329,
+                701,
+                1363,
+                48,
+                1363
+              ],
+              "confidence": 88.2,
+              "amount": "23.79"
+            },
+            {
+              "text": "TOTAL: 23.80",
+              "polygon": [
+                47,
+                1448,
+                699,
+                1448,
+                699,
+                1507,
+                47,
+                1507
+              ],
+              "confidence": 88.7,
+              "amount": "23.80"
+            }
+          ]
+        },
+        "contextual_evidence": {
+          "reason": null,
+          "candidates": [
+            {
+              "text": "TOTAL: 23.80",
+              "polygon": [
+                47,
+                1448,
+                699,
+                1448,
+                699,
+                1507,
+                47,
+                1507
+              ],
+              "confidence": 88.7,
+              "amount": "23.80",
+              "tier": "generic"
+            }
+          ]
+        },
+        "gate_reasons": {
+          "A_format_only": [],
+          "B_legacy_ocr": [
+            "TOTAL_EVIDENCE_CONFLICT"
+          ],
+          "C_contextual_ocr": []
+        },
+        "latency_ms": 10150.344,
+        "timings_ms": {
+          "preprocess": 251.731,
+          "ocr": 790.061,
+          "inference": 9108.244,
+          "validation": 0.233,
+          "legacy_evidence": 0.075,
+          "context_evidence": 0.131,
+          "end_to_end_A": 9360.208,
+          "end_to_end_B": 10150.344,
+          "end_to_end_C": 10150.4,
+          "evaluation_wall": 10150.515
+        }
+      }
+    }
+  ]
+}

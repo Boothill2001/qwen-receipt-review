@@ -64,7 +64,7 @@ The new CLI processed 50 SROIE train development receipts and all 337 clean test
 | B · Legacy OCR | 52/337 | 52/52 | 285 | 96/105 | 3 |
 | C · Contextual OCR | 48/337 | 48/48 | 289 | 103/105 | 3 |
 
-C sent a net seven additional wrong nonempty totals to review relative to B. Every record it passed still had an error in at least one of the four fields. This result argues for using total evidence as a field-level signal and measuring any record-level policy on all fields. The figures above come from the local Tesseract 5.5.0 run. The Kaggle Tesseract 5.3.4 run was separate and matched 137/337 totals and 4/337 complete records. [Local Tesseract aggregate JSON and manifests](tesseract-gates-summary.json)
+C sent a net seven additional wrong nonempty totals to review relative to B. Every record it passed still had an error in at least one of the four fields. The figures above come from the local Tesseract 5.5.0 run. The Kaggle Tesseract 5.3.4 run used the same OCR config, ZIP hash and ordered IDs as the Kaggle Qwen run. It matched 137/337 totals and 4/337 complete records. [Local Tesseract report](tesseract-gates-summary.json) · [Paired Kaggle Tesseract report](tesseract-kaggle-summary.json)
 
 ## Measured Qwen gate comparison
 
@@ -77,6 +77,38 @@ Qwen processed all 337 test receipts on Tesla T4 ×2 and returned 337 valid JSON
 | C · Contextual OCR | 261/337 | 137 | 28/76 | 8/9 |
 
 For B, 199 receipts had unclear OCR evidence, 62 had conflicting candidates and 21 had OCR totals that disagreed with Qwen. Format reasons can overlap these counts. C reduced review by 27 receipts net and admitted six more incorrect complete records net. Address mismatches accounted for 18 of the 22 incorrect passes under B and 25 of the 28 under C. Review policy should use evidence at the field level and measure each downstream action on its own required fields.
+
+## Field-level review
+
+The total-only policy keeps the contextual OCR check and total format checks. It requires review of company, date and address separately. It produces the following retrospective results on the stored Qwen predictions.
+
+| Cohort | Legacy gate sends total to review | Contextual record gate sends total to review | Total-only policy sends total to review | Wrong totals among supported totals |
+| --- | ---: | ---: | ---: | ---: |
+| Train dev | 40/50 | 33/50 | 33/50 | 0/17 |
+| Clean test | 288/337 | 261/337 | 255/337 | 1/82 |
+
+On test, the six extra supported totals relative to C came from receipts with a date-format flag. The policy supports the amount on 82 receipts, while 33 of those receipts still differ from the benchmark label in at least one field. If all four fields are required, the proposed workflow still has a human task for every receipt. It asks for 1,266 field checks out of 1,348 possible checks, assuming each unverified field is checked once. This counts fields, with no measurement of reviewer time. The full test report was available before this analysis, so use a fresh holdout to validate an operating policy.
+
+```bash
+python field_review.py work/receipt-v2/qwen-full-v2.json
+```
+
+[Dev and full test policy results](field-review-results.json)
+
+## Visual token budget
+
+The pinned Qwen processor ran on the same 50 train dev receipts at two image budgets. At the original pixel cap, its per-receipt counts matched every recorded GPU dev count. Reducing the cap halved the median number of visual tokens from 1,241 to 620. This measures input size. The lower-budget checkpoint still needs matched GPU inference runs to measure extraction accuracy, memory, and latency. [Per-receipt token counts](visual-token-profile.json)
+
+| Image pixel cap | Dev receipts | Visual tokens p50 | Visual tokens p95 |
+| --- | ---: | ---: | ---: |
+| 1,003,520 | 50 | 1,241 | 1,272 |
+| 501,760 | 50 | 620 | 630 |
+
+Run the lower cap on the same dev cohort with the same CUDA and OCR versions before choosing a deployment budget.
+
+```bash
+python benchmark_receipts.py --archive work/sroie-kaggle.zip --method qwen --cohort dev --max-pixels 501760 --output work/receipt-v2/qwen-dev-low-budget.json
+```
 
 ## Engineering decisions for an interview
 
@@ -93,3 +125,5 @@ For B, 199 receipts had unclear OCR evidence, 62 had conflicting candidates and 
 Start with FastAPI, durable jobs in one database and a single GPU worker with measured concurrency and queue capacity. Accept a valid enqueued job with HTTP 202 and a status URL. Use 429 with a retry hint when an admission limit is reached and 503 when the worker service is unavailable. Store idempotency key, input hash, and model, prompt, preprocessing and gate versions. Reusing an idempotency key with different input is a conflict.
 
 Transition jobs from queued to running to completed, needs-review, failed or cancelled. Use a worker lease and heartbeat to reclaim interrupted work, and fence stale workers from committing results after a lease expires. Remove or mark queued jobs on cancellation and treat a running GPU call as cooperatively cancellable before its result can be published. Retry transient failures with capped exponential backoff and jitter. Bound image pixels and generation length, validate device headroom before accepting more work, and surface OOM failures without a retry loop on the same oversized job. Observe queue wait, per-stage p95, OOM and retry counts, result state and review coverage before scaling out.
+
+Start the load test at worker concurrency one. Use 12.19 s, the measured extraction p95 on two T4s, as an input for an initial queue budget. For a 60 s queue-wait target, provision at most four waiting slots initially and verify that bound with a burst test. The estimate omits upload, job storage and dispatch time. Record p95 queue wait and API response time separately. Test a worker exit after inference and before commit, repeated submission with the same idempotency key, and a full queue. Keep human approval outside the GPU worker and persist the raw inference and reviewer edits with their respective version and actor.

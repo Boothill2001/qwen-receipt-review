@@ -11,6 +11,7 @@ import streamlit as st
 from PIL import Image, ImageDraw
 
 from evaluation_metrics import GATES, gate_metrics
+from field_review import total_review_reasons
 from receipt_pipeline import (
     FIELDS, OLLAMA_MODEL, OllamaBackend, TesseractBackend, extract_image,
     inventory, prepare_image, review_reasons, sha256_file, summarize,
@@ -22,9 +23,19 @@ WORKSPACE_WORK = PROJECT.parent.parent / "work"
 if "RECEIPT_REVIEW_WORK" not in os.environ and not WORK.is_dir():
     if (WORKSPACE_WORK / "sroie-kaggle.zip").is_file():
         WORK = WORKSPACE_WORK
-LABELS = {"company": "Cửa hàng", "date": "Ngày", "address": "Địa chỉ", "total": "Tổng tiền"}
-METHODS = {"annotated-ocr": "OCR chú thích + rule", "tesseract": "Tesseract + rule",
-           "qwen": "Qwen · checkpoint FP16", "ollama": "Qwen · Ollama lượng tử hóa"}
+LABELS = {"company": "Merchant", "date": "Date", "address": "Address", "total": "Total"}
+METHODS = {"annotated-ocr": "Annotated OCR + rules", "tesseract": "Tesseract + rules",
+           "qwen": "Qwen · checkpoint FP16", "ollama": "Qwen · Ollama quantized"}
+GATE_LABELS = dict(zip(GATES, ("A · Format only", "B · Legacy OCR", "C · Contextual OCR")))
+REPLAY_DIR = PROJECT / "assets" / "replay"
+
+
+def apply_gate(row, gate):
+    reasons = row["gate_reasons"][gate]
+    return {
+        **row, "reasons": reasons, "status": "NEEDS_REVIEW" if reasons else "RULES_PASSED",
+        "evidence": ({}, row["evidence"], row["contextual_evidence"])[GATES.index(gate)],
+    }
 
 
 @st.cache_data
@@ -37,9 +48,10 @@ def percent(num, den):
     return f"{num}/{den} · {num / den:.1%}" if den else "—"
 
 
-def draw_receipt(png, evidence, mode):
-    image = Image.open(BytesIO(png)).convert("RGB")
-    if mode == "Ảnh gốc":
+def draw_receipt(image_bytes, evidence, mode):
+    with Image.open(BytesIO(image_bytes)) as source:
+        image = source.convert("RGB")
+    if mode == "Original scan":
         return image
     drawing = ImageDraw.Draw(image)
     color = "#087466" if not evidence.get("reason") else "#ab661b"
@@ -49,6 +61,18 @@ def draw_receipt(png, evidence, mode):
     return image
 
 
+def evidence_region(image, candidates):
+    if candidates:
+        coords = [item["polygon"] for item in candidates]
+        xs = [x for polygon in coords for x in polygon[::2]]
+        ys = [y for polygon in coords for y in polygon[1::2]]
+        region = (max(0, min(xs) - 24), max(0, min(ys) - 24),
+                  min(image.width, max(xs) + 24), min(image.height, max(ys) + 24))
+        if region[2] > region[0] and region[3] > region[1]:
+            return image.crop(region)
+    return None
+
+
 def review_workspace(png, row, key, metadata):
     evidence = row.get("evidence", {})
     candidates = evidence.get("candidates", [])
@@ -56,54 +80,50 @@ def review_workspace(png, row, key, metadata):
     left, right = st.columns([1.15, 1], gap="large")
     with left:
         with st.container(border=True):
-            st.subheader("Ảnh biên lai")
-            mode = st.radio("Lớp hiển thị", ["Ảnh gốc", "Vùng tổng tiền"], horizontal=True,
+            st.subheader("Receipt scan")
+            mode = st.radio("Image layer", ["Original scan", "Total evidence"], horizontal=True,
                             key=overlay_key, label_visibility="collapsed")
-            zoom = st.slider("Zoom ảnh", 50, 180, 100, 10, key=f"zoom:{key}", format="%d%%")
+            zoom = st.slider("Zoom", 50, 180, 100, 10, key=f"zoom:{key}", format="%d%%")
             image = draw_receipt(png, evidence, mode)
-            if mode == "Vùng tổng tiền" and not candidates:
-                st.caption("Ca này chưa có vùng tổng tiền từ OCR runtime.")
-            if mode == "Vùng tổng tiền" and candidates:
-                coords = [item["polygon"] for item in candidates]
-                xs = [x for polygon in coords for x in polygon[::2]]
-                ys = [y for polygon in coords for y in polygon[1::2]]
-                region = (max(0, min(xs) - 24), max(0, min(ys) - 24),
-                          min(image.width, max(xs) + 24), min(image.height, max(ys) + 24))
-                if region[2] > region[0] and region[3] > region[1]:
-                    st.image(image.crop(region), caption="Vùng OCR được phóng", width="stretch")
+            if mode == "Total evidence" and not candidates:
+                st.caption("OCR found no total region for this receipt.")
+            if mode == "Total evidence":
+                crop = evidence_region(image, candidates)
+                if crop is not None:
+                    st.image(crop, caption="OCR evidence crop", width="stretch")
             st.image(image, width=int(450 * zoom / 100))
     with right:
         with st.container(border=True):
-            st.subheader("Đối chiếu và duyệt")
+            st.subheader("Verify and approve")
             if row["status"] == "NEEDS_REVIEW":
-                st.warning("Cần duyệt · " + ", ".join(row["reasons"]))
+                st.warning("Needs review · " + ", ".join(row["reasons"]))
             else:
-                st.success("Qua kiểm tra tự động")
+                st.success("Auto-pass")
             st.caption(f"{metadata['runtime']} · {metadata.get('model') or metadata['method']} · {row['latency_ms']:.0f} ms")
             if row.get("error_detail") or row.get("ocr_error"):
                 st.caption(row.get("error_detail") or row.get("ocr_error"))
             if candidates:
-                st.caption("Bằng chứng tổng tiền từ OCR")
-                st.button("Xem vùng Tổng tiền", key=f"focus:{key}",
-                          on_click=lambda: st.session_state.update({overlay_key: "Vùng tổng tiền"}))
+                st.caption("OCR amount evidence")
+                st.button("Zoom to total", key=f"focus:{key}",
+                          on_click=lambda: st.session_state.update({overlay_key: "Total evidence"}))
                 for candidate in candidates:
                     st.text(f"{candidate['text']}  ·  OCR {candidate['confidence']:.0f}/100")
             if "gold" in row:
-                with st.expander("So với nhãn SROIE"):
-                    st.dataframe([{"Trường": LABELS[f], "Dự đoán": row["fields"][f], "Nhãn": row["gold"][f],
-                                   "Khớp": row["match"][f]} for f in FIELDS], hide_index=True)
+                with st.expander("Compare with SROIE labels"):
+                    st.dataframe([{"Field": LABELS[f], "Prediction": row["fields"][f], "Label": row["gold"][f],
+                                   "Match": row["match"][f]} for f in FIELDS], hide_index=True)
             state_key = f"approved:{key}"
             with st.form(f"review:{key}"):
                 reviewed = {field: st.text_input(LABELS[field], row["fields"][field] or "",
                                                  max_chars=1000, key=f"value:{key}:{field}")
                             for field in FIELDS}
-                confirmed = st.checkbox("Đã đối chiếu với ảnh gốc")
-                submitted = st.form_submit_button("Lưu bản duyệt", type="primary")
+                confirmed = st.checkbox("I checked the original scan")
+                submitted = st.form_submit_button("Save approval", type="primary")
             if submitted:
                 st.session_state.pop(state_key, None)
                 reasons = review_reasons(reviewed)
                 if reasons or not confirmed:
-                    st.error(", ".join(reasons) if reasons else "Hãy xác nhận đã đối chiếu ảnh.")
+                    st.error(", ".join(reasons) if reasons else "Confirm that you checked the original scan.")
                 else:
                     st.session_state[state_key] = {
                         "receipt_id": metadata["receipt_id"], "runtime": metadata["runtime"],
@@ -112,34 +132,98 @@ def review_workspace(png, row, key, metadata):
                         "original": row["fields"], "reviewed": reviewed, "reasons_before_review": row["reasons"],
                     }
             if state_key in st.session_state:
-                st.download_button("Xuất JSON đã duyệt", json.dumps(st.session_state[state_key], ensure_ascii=False, indent=2),
+                st.download_button("Export approved JSON", json.dumps(st.session_state[state_key], ensure_ascii=False, indent=2),
                                    "receipt-reviewed.json", "application/json", on_click="ignore", key=f"download:{key}")
-            with st.expander("JSON và dấu vết xử lý"):
+            with st.expander("JSON and decision trace"):
                 st.json(row["fields"])
-                st.code(row.get("raw") or "Chưa có đầu ra")
+                st.code(row.get("raw") or "No model output")
                 if row.get("ocr_lines"):
                     st.json(row["ocr_lines"], expanded=False)
 
 
+def case_replay():
+    bundle = json.loads((REPLAY_DIR / "cases.json").read_text(encoding="utf-8"))
+    source = bundle["provenance"]
+    cases = {case["title"]: case for case in bundle["cases"]}
+    st.caption(f"{source['model']} · Saved GPU predictions from {source['documents']} SROIE receipts")
+    choice = st.selectbox("Case", list(cases), key="replay_case")
+    case = cases[choice]
+    row = case["row"]
+    st.write(case["lesson"])
+    st.caption(f"SROIE receipt {row['key']}")
+    gate = st.radio("Decision policy", GATES, index=1, format_func=GATE_LABELS.get,
+                    horizontal=True, key="replay_gate")
+    selected = apply_gate(row, gate)
+    candidates = selected["evidence"].get("candidates", [])
+    with st.container(border=True):
+        left, right = st.columns([1.08, 1], gap="large")
+        with left:
+            overlay = st.checkbox("Show OCR evidence", value=True, key=f"replay-overlay:{row['key']}")
+            image = draw_receipt((REPLAY_DIR / f"{row['key']}.webp").read_bytes(),
+                                 selected["evidence"], "Total evidence" if overlay else "Original scan")
+            crop = evidence_region(image, candidates) if overlay else None
+            if crop is not None:
+                st.image(crop, caption="OCR region · click to enlarge", width="stretch")
+            if overlay and not candidates:
+                st.caption("This policy has no OCR region to show.")
+            with st.expander("Full receipt", expanded=crop is None):
+                st.image(image, width=420)
+        with right:
+            if selected["reasons"]:
+                st.warning("Needs review")
+                st.code("\n".join(selected["reasons"]), language=None)
+            else:
+                st.success("Auto-pass")
+            st.caption(f"{sum(row['match'].values())}/4 fields match the dataset")
+            total_reasons = total_review_reasons(row)
+            if total_reasons:
+                st.caption("Total-only policy · Verify total")
+            else:
+                st.caption("Total-only policy · Total supported by OCR. Company, date and address still require verification.")
+            focus = case["focus"]
+            st.markdown(f"**{LABELS[focus]}** · " + ("Matches label" if row["match"][focus] else "Differs from label"))
+            st.caption("Qwen prediction")
+            st.text(row["fields"][focus], width="stretch")
+            st.caption("SROIE label")
+            st.text(row["gold"][focus], width="stretch")
+            with st.expander("Compare all four fields"):
+                st.table([
+                    {"Field": LABELS[f], "Qwen": row["fields"][f], "SROIE": row["gold"][f],
+                     "Match": "Yes" if row["match"][f] else "No"}
+                    for f in FIELDS
+                ])
+            if candidates:
+                st.markdown("**OCR amount candidates**")
+                for item in candidates:
+                    st.text(f"{item['text']} · OCR {item['confidence']:.0f}/100")
+            with st.expander("Raw model response and decision trace"):
+                st.code(row["raw"], language="json")
+                st.json({"gate": gate, "reasons": selected["reasons"],
+                         "evidence": selected["evidence"], "model_revision": source["model_revision"],
+                         "archive_sha256": source["archive_sha256"], "timings_ms": row["timings_ms"]})
+                st.download_button("Download recorded case", json.dumps(row, ensure_ascii=False, indent=2),
+                                   f"{row['key']}.json", "application/json", on_click="ignore")
+
+
 def new_receipt():
-    st.subheader("Đọc ảnh mới")
-    uploaded = st.file_uploader("Tải ảnh biên lai PNG hoặc JPEG", type=["png", "jpg", "jpeg"], key="image")
+    st.subheader("Live extraction")
+    uploaded = st.file_uploader("Upload a PNG or JPEG receipt", type=["png", "jpg", "jpeg"], key="image")
     if uploaded is None:
-        st.info("Chọn một ảnh để mở workspace. App gọi Ollama qua 127.0.0.1.")
+        st.info("Choose a receipt to start. Live extraction uses Ollama at 127.0.0.1.")
         return
     raw = uploaded.getvalue()
     fingerprint = hashlib.sha256(raw).hexdigest()
     try:
         png = prepare_image(raw, uploads_only=True)
     except (ValueError, OSError, Image.DecompressionBombError) as error:
-        st.error(f"Ảnh không đọc được. {error}")
+        st.error(f"Could not read the image. {error}")
         return
     stored = st.session_state.get("live")
     if stored is None or stored["image_hash"] != fingerprint:
         st.session_state.pop("live", None)
         stored = None
-    if st.button("Chạy lại Qwen" if stored else "Chạy Qwen", type="primary"):
-        with st.status("Đang kết nối Ollama và Tesseract", expanded=True) as progress:
+    if st.button("Retry Qwen" if stored else "Run Qwen", type="primary"):
+        with st.status("Connecting to Ollama and Tesseract", expanded=True) as progress:
             try:
                 backend = OllamaBackend()
                 try:
@@ -148,20 +232,20 @@ def new_receipt():
                     reason = str(error)
                     def ocr(_):
                         raise RuntimeError(reason)
-                progress.write("Đang đọc ảnh và đối chiếu tổng tiền.")
+                progress.write("Extracting receipt fields and checking total evidence.")
                 row = extract_image(png, "ollama", backend, ocr)
                 stored = {"image_hash": fingerprint, "row": row, "revision": backend.revision}
                 st.session_state["live"] = stored
                 failed = "INFERENCE_ERROR" in row["reasons"]
-                progress.update(label="Qwen gặp lỗi" if failed else "Đã xử lý ảnh",
+                progress.update(label="Qwen failed" if failed else "Extraction complete",
                                 state="error" if failed else "complete", expanded=False)
             except Exception as error:
-                progress.update(label="Chưa kết nối được runtime", state="error", expanded=True)
-                st.error(f"Kiểm tra Ollama và model {OLLAMA_MODEL}, sau đó thử lại. {error}")
+                progress.update(label="Runtime unavailable", state="error", expanded=True)
+                st.error(f"Check Ollama and model {OLLAMA_MODEL}, then retry. {error}")
     if stored:
         review_key = fingerprint + hashlib.sha256(repr(stored["row"]).encode()).hexdigest()[:12]
         review_workspace(png, stored["row"], review_key, {
-            "receipt_id": fingerprint[:12], "method": "ollama", "runtime": "Ollama · lượng tử hóa",
+            "receipt_id": fingerprint[:12], "method": "ollama", "runtime": "Ollama · quantized",
             "model": OLLAMA_MODEL, "model_revision": stored["revision"],
         })
     else:
@@ -182,20 +266,20 @@ def load_benchmark(path, uploads):
             report = json.loads(raw)
             if (report.get("archive_sha256") != sha or not isinstance(report.get("receipts"), list)
                     or not report["receipts"] or not {"method", "split"} <= set(report)):
-                raise ValueError("Report trống hoặc hash ZIP khác.")
+                raise ValueError("Empty report or mismatched ZIP hash.")
             ids = []
             for row in report["receipts"]:
                 required = {"key", "fields", "gold", "match", "status", "latency_ms", "schema_valid"}
                 if not isinstance(row, dict) or not required <= row.keys():
-                    raise ValueError("Report thiếu trường dữ liệu.")
+                    raise ValueError("Report is missing required fields.")
                 if any(not isinstance(row[field], dict) or not set(FIELDS) <= row[field].keys()
                        for field in ("fields", "gold", "match")):
-                    raise ValueError("Các trường trích xuất trong report không đầy đủ.")
+                    raise ValueError("Report contains incomplete receipt fields.")
                 if not isinstance(row["key"], str) or not isinstance(row["latency_ms"], (int, float)):
-                    raise ValueError("ID biên lai hoặc latency không hợp lệ.")
+                    raise ValueError("Invalid receipt ID or latency.")
                 ids.append(row["key"])
             if len(ids) != len(set(ids)):
-                raise ValueError("Report chứa ID biên lai lặp.")
+                raise ValueError("Report contains duplicate receipt IDs.")
             reports[name] = report
         except (AttributeError, ValueError, TypeError) as error:
             st.warning(f"{name} · {error}")
@@ -204,30 +288,30 @@ def load_benchmark(path, uploads):
 
 def benchmark_view():
     st.subheader("Benchmark")
-    with st.expander("Nguồn dữ liệu"):
+    with st.expander("Data sources"):
         archive_path = st.text_input("ZIP SROIE", str(WORK / "sroie-kaggle.zip"))
-        uploads = st.file_uploader("Thêm report JSON từ notebook", type="json", accept_multiple_files=True)
+        uploads = st.file_uploader("Add benchmark JSON reports", type="json", accept_multiple_files=True)
     path = Path(archive_path)
     try:
         reports, index = load_benchmark(path, uploads or [])
     except (OSError, BadZipFile, ValueError) as error:
-        st.info(f"Mở ZIP để xem benchmark. {error}")
+        st.info(f"Open the dataset ZIP to view benchmarks. {error}")
         return
     if not reports:
-        st.info("Chưa có report phù hợp.")
+        st.info("No compatible reports found.")
         return
     groups = {}
     for name, report in reports.items():
         ids = tuple(sorted(row["key"] for row in report["receipts"]))
         groups.setdefault((report["split"], ids), []).append(name)
     options = list(groups)
-    cohort = st.selectbox("Tập biên lai", options, format_func=lambda item: (
-        f"{item[0]} · {len(item[1])} biên lai · {len(groups[item])} report · "
+    cohort = st.selectbox("Receipt cohort", options, format_func=lambda item: (
+        f"{item[0]} · {len(item[1])} receipts · {len(groups[item])} report · "
         f"{hashlib.sha256('|'.join(item[1]).encode()).hexdigest()[:6]}"
     ))
     names = groups[cohort]
-    merchant = st.selectbox("Nhóm cửa hàng", ["Tất cả", "Đã thấy", "Chưa thấy"])
-    group = {"Đã thấy": "seen", "Chưa thấy": "unseen"}.get(merchant)
+    merchant = st.selectbox("Merchant group", ["All", "Seen", "Unseen"])
+    group = {"Seen": "seen", "Unseen": "unseen"}.get(merchant)
     filtered = {name: [row for row in reports[name]["receipts"] if not group or row.get("merchant_group") == group]
                 for name in names}
     stats = []
@@ -235,55 +319,51 @@ def benchmark_view():
         s = summarize(filtered[name])
         n = s["documents"]
         stats.append({"Report": name, "Pipeline": METHODS.get(reports[name]["method"], reports[name]["method"]),
-                      "Mẫu": n, "JSON hợp lệ": percent(s["schema_valid"], n),
-                      "Đủ 4 trường": percent(s["exact_all_fields"], n),
+                      "Receipts": n, "Valid JSON": percent(s["schema_valid"], n),
+                      "All four fields": percent(s["exact_all_fields"], n),
                       **{f: percent(s["field_exact"][f], n) for f in FIELDS},
-                      "Qua kiểm tra": percent(s["rules_passed"], n),
-                      "Cần duyệt": percent(s["needs_review"], n),
-                      "Sai trong nhóm qua": percent(s["incorrect_among_rules_passed"], s["rules_passed"]),
-                      "Sai total được đưa duyệt": percent(s["wrong_total_flagged"], s["wrong_total"]),
-                      "Sai total do bằng chứng chặn thêm": percent(s["wrong_total_caught_by_evidence"], s["wrong_total"]),
+                      "Auto-pass": percent(s["rules_passed"], n),
+                      "Needs review": percent(s["needs_review"], n),
+                      "Errors among passes": percent(s["incorrect_among_rules_passed"], s["rules_passed"]),
+                      "Wrong totals flagged": percent(s["wrong_total_flagged"], s["wrong_total"]),
+                      "Additional wrong totals flagged by OCR": percent(s["wrong_total_caught_by_evidence"], s["wrong_total"]),
                       "p50 ms": s["latency_ms"]["median"], "p95 ms": s["latency_ms"]["p95_nearest_rank"]})
     st.dataframe(stats, hide_index=True)
-    st.caption("Bảng so sánh các report có cùng split và danh sách ID. Ca hỏng vẫn nằm trong mẫu số. "
-               "Runner mới tính thêm thời gian chuẩn bị ảnh so với report pilot gốc.")
-    name = st.selectbox("Report để xem ca", names)
+    st.caption("Reports share the same split and receipt IDs. Failures count in the denominator. "
+               "The full runner includes image preparation in latency.")
+    name = st.selectbox("Report to inspect", names)
     rows = filtered[name]
     if "metrics" in reports[name] and all("gate_reasons" in row for row in rows):
-        gate_names = dict(zip(GATES, ["A · Kiểm tra trường", "B · OCR gốc", "C · OCR theo ngữ cảnh"]))
-        with st.expander("So sánh ba gate trên cùng dự đoán", expanded=True):
+        with st.expander("Compare three gates on the same predictions", expanded=True):
             gate_rows = []
-            for gate, label in gate_names.items():
+            for gate, label in GATE_LABELS.items():
                 g = gate_metrics(rows, gate)
                 gate_rows.append({
-                    "Gate": label, "Qua": percent(g["coverage"]["count"], g["coverage"]["n"]),
-                    "Sai trong nhóm qua": percent(g["selective_risk"]["count"], g["selective_risk"]["n"]),
-                    "Cần duyệt": g["review_workload"]["count"], "Qua nhưng sai": g["false_pass_count"],
-                    "Đúng nhưng cần duyệt": g["correct_flagged_count"],
-                    "Chặn total sai": percent(g["wrong_total_detected"]["count"], g["wrong_total_detected"]["n"]),
+                    "Gate": label, "Passed": percent(g["coverage"]["count"], g["coverage"]["n"]),
+                    "Errors among passes": percent(g["selective_risk"]["count"], g["selective_risk"]["n"]),
+                    "Needs review": g["review_workload"]["count"], "Incorrect passes": g["false_pass_count"],
+                    "Correct records flagged": g["correct_flagged_count"],
+                    "Wrong totals flagged": percent(g["wrong_total_detected"]["count"], g["wrong_total_detected"]["n"]),
                 })
             st.dataframe(gate_rows, hide_index=True)
-        gate = st.selectbox("Hiện vùng và trạng thái theo gate", GATES, index=1, format_func=gate_names.get, key=f"gate:{name}")
-        rows = [{
-            **row, "reasons": row["gate_reasons"][gate],
-            "status": "NEEDS_REVIEW" if row["gate_reasons"][gate] else "RULES_PASSED",
-            "evidence": ({}, row["evidence"], row["contextual_evidence"])[GATES.index(gate)],
-        } for row in rows]
-    case_filter = st.radio("Nhóm ca", ["Tất cả", "Cần duyệt", "Qua kiểm tra nhưng sai"], horizontal=True)
-    cases = [row for row in rows if case_filter == "Tất cả"
-             or (case_filter == "Cần duyệt" and row["status"] == "NEEDS_REVIEW")
-             or (case_filter == "Qua kiểm tra nhưng sai" and row["status"] == "RULES_PASSED" and not all(row["match"].values()))]
+        gate = st.selectbox("Show evidence and status for gate", GATES, index=1,
+                            format_func=GATE_LABELS.get, key=f"gate:{name}")
+        rows = [apply_gate(row, gate) for row in rows]
+    case_filter = st.radio("Case filter", ["All", "Needs review", "Incorrect auto-pass"], horizontal=True)
+    cases = [row for row in rows if case_filter == "All"
+             or (case_filter == "Needs review" and row["status"] == "NEEDS_REVIEW")
+             or (case_filter == "Incorrect auto-pass" and row["status"] == "RULES_PASSED" and not all(row["match"].values()))]
     if not cases:
-        st.info("Chưa có ca trong bộ lọc.")
+        st.info("No receipts match this filter.")
         return
-    key = st.selectbox("Biên lai", [row["key"] for row in cases])
+    key = st.selectbox("Receipt", [row["key"] for row in cases])
     row = next(item for item in cases if item["key"] == key)
     report = reports[name]
     try:
         with ZipFile(path) as archive:
             png = prepare_image(archive.read(index[(report["split"], key)]))
     except (OSError, KeyError, ValueError) as error:
-        st.error(f"Không mở được ảnh. {error}")
+        st.error(f"Could not open the image. {error}")
         return
     run_id = hashlib.sha256(repr((name, report.get("model_revision"), row)).encode()).hexdigest()[:16]
     review_workspace(png, row, f"{key}:{run_id}", {
@@ -294,10 +374,12 @@ def benchmark_view():
 
 st.set_page_config(page_title="Receipt Review", layout="wide", initial_sidebar_state="collapsed")
 st.title("Receipt Review")
-st.caption("Ảnh → trích xuất → đối chiếu vùng tổng tiền → duyệt → JSON")
-view = st.segmented_control("Workspace", ["Đọc ảnh mới", "Benchmark"], default="Đọc ảnh mới",
+st.caption("Receipt extraction, OCR evidence and human review")
+view = st.segmented_control("Workspace", ["Case replay", "Live extraction", "Benchmark"], default="Case replay",
                             selection_mode="single")
-if view == "Benchmark":
+if view == "Case replay":
+    case_replay()
+elif view == "Benchmark":
     benchmark_view()
 else:
     new_receipt()
