@@ -323,7 +323,8 @@ def review_reasons(fields):
 class QwenBackend:
     """Loads the official checkpoint once. Requires a CUDA notebook for this recipe."""
 
-    def __init__(self, model_id=MODEL, revision=None, max_pixels=MAX_PIXELS, adapter=None, profile=False):
+    def __init__(self, model_id=MODEL, revision=None, max_pixels=MAX_PIXELS, adapter=None, profile=False,
+                 prompt=PROMPT):
         import torch
         import transformers
         from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
@@ -332,6 +333,7 @@ class QwenBackend:
             raise RuntimeError("Enable a GPU runtime before loading this checkpoint")
         self.torch = torch
         self.profile = profile
+        self.prompt = prompt
         self.last_generation = None
         self.runtime_version = transformers.__version__
         self.model_id = model_id
@@ -355,7 +357,7 @@ class QwenBackend:
             image = ImageOps.exif_transpose(source).convert("RGB")
         messages = [{"role": "user", "content": [
             {"type": "image", "image": image},
-            {"type": "text", "text": PROMPT},
+            {"type": "text", "text": self.prompt},
         ]}]
         inputs = self.processor.apply_chat_template(
             messages, tokenize=True, add_generation_prompt=True, return_dict=True, return_tensors="pt"

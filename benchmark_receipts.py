@@ -12,12 +12,13 @@ from importlib.metadata import version
 from pathlib import Path
 from zipfile import ZipFile
 
+from address_protocol import ADDRESS_CASES, PROMPTS
 from evaluation_metrics import (
     CONTEXT_GATE_VERSION, GATES, MIN_LINE_CONFIDENCE, contextual_evidence, metrics,
 )
 from receipt_pipeline import (
     FIELDS, IMAGE_MAX_EDGE, IMAGE_MAX_PIXELS, MAX_NEW_TOKENS, MAX_PIXELS, MIN_PIXELS,
-    MODEL, PROMPT, PROMPT_VERSION, SOURCE, TOTAL_EVIDENCE_VERSION,
+    MODEL, PROMPT_VERSION, SOURCE, TOTAL_EVIDENCE_VERSION,
     QwenBackend, TesseractBackend, annotated_ocr_baseline, clean_test, inventory,
     merchant_key, normalize, prepare_image, process, read_label, sample, sha256_file,
     summarize, total_evidence,
@@ -27,6 +28,7 @@ REVISION = "cc594898137f460bfe9f0759e9844b3ce807cfb5"
 ARCHIVE_SHA = "e4502ab884e5fe49e138673f16f6fa72ae0d5fa1d59a2b59a860a2d75e534844"
 SEED = 42
 COHORTS = {"smoke": ("train", 1), "dev": ("train", 50), "pilot": ("test", 20), "full": ("test", 0)}
+COHORTS["address-dev10"] = ("train", len(ADDRESS_CASES))
 
 
 def elapsed(start):
@@ -35,8 +37,14 @@ def elapsed(start):
 
 def dataset(archive, cohort):
     receipts, exclusions = clean_test(archive, inventory(archive))
-    split, limit = COHORTS[cohort]
-    selected = sample(receipts, split, limit, SEED)
+    if cohort == "address-dev10":
+        dev = {item.key: item for item in sample(receipts, "train", 50, SEED)}
+        if not ADDRESS_CASES.keys() <= dev.keys():
+            raise ValueError("The fixed address cases must belong to the 50-receipt train dev cohort")
+        selected = [dev[key] for key in ADDRESS_CASES]
+    else:
+        split, limit = COHORTS[cohort]
+        selected = sample(receipts, split, limit, SEED)
     if cohort == "full" and len(selected) != 337:
         raise ValueError(f"Expected 337 clean test receipts, got {len(selected)}")
     gold = {item.key: read_label(archive, item) for item in selected}
@@ -185,13 +193,13 @@ def cuda_runtime():
     }
 
 
-def load_qwen(png, max_pixels):
+def load_qwen(png, max_pixels, prompt):
     from torch import cuda
 
     for device in range(cuda.device_count()):
         cuda.reset_peak_memory_stats(device)
     started = time.perf_counter()
-    backend = QwenBackend(revision=REVISION, max_pixels=max_pixels, profile=True)
+    backend = QwenBackend(revision=REVISION, max_pixels=max_pixels, profile=True, prompt=prompt)
     backend.synchronize()
     if backend.revision != REVISION:
         raise RuntimeError(f"Model resolved unexpected revision {backend.revision}")
@@ -231,13 +239,17 @@ def atomic_json(path, report):
         temporary.unlink(missing_ok=True)
 
 
-def run(archive_path, output, method, cohort, max_pixels=MAX_PIXELS):
+def run(archive_path, output, method, cohort, max_pixels=MAX_PIXELS, prompt_version=PROMPT_VERSION):
     archive_path, output = Path(archive_path), Path(output)
     archive_sha = sha256_file(archive_path)
     if archive_sha != ARCHIVE_SHA:
         raise ValueError(f"Unexpected SROIE ZIP SHA-256: {archive_sha}")
     if method == "qwen" and cohort in {"pilot", "full"} and max_pixels != MAX_PIXELS:
         raise ValueError("Compare alternative visual budgets on dev before freezing a holdout protocol.")
+    if prompt_version not in PROMPTS or (method != "qwen" and prompt_version != PROMPT_VERSION):
+        raise ValueError("Alternative prompt versions require the Qwen backend")
+    if cohort == "address-dev10" and (method != "qwen" or max_pixels != MAX_PIXELS):
+        raise ValueError("Address dev10 requires Qwen with the original image budget")
     if output.suffix.lower() != ".json":
         raise ValueError("Use a .json path for the final report")
     checkpoint = output.with_suffix(".sqlite3")
@@ -252,11 +264,12 @@ def run(archive_path, output, method, cohort, max_pixels=MAX_PIXELS):
             "source": SOURCE, "archive_sha256": archive_sha, "cohort": cohort, "split": selected[0].split,
             "seed": SEED, "receipt_ids": list(by_id), "test_exclusions": exclusions, "method": method,
             "code_sha256": {name: sha256_file(Path(__file__).with_name(name)) for name in
-                            ("receipt_pipeline.py", "benchmark_receipts.py", "evaluation_metrics.py")},
+                            ("receipt_pipeline.py", "benchmark_receipts.py", "evaluation_metrics.py",
+                             "address_protocol.py")},
             "model": MODEL if method == "qwen" else None,
             "model_revision": REVISION if method == "qwen" else None,
-            "prompt_version": PROMPT_VERSION if method == "qwen" else None,
-            "prompt": PROMPT if method == "qwen" else None,
+            "prompt_version": prompt_version if method == "qwen" else None,
+            "prompt": PROMPTS[prompt_version] if method == "qwen" else None,
             "image_config": {"max_edge": IMAGE_MAX_EDGE, "source_max_pixels": IMAGE_MAX_PIXELS,
                              "min_pixels": MIN_PIXELS if method == "qwen" else None,
                              "max_pixels": max_pixels if method == "qwen" else None},
@@ -275,7 +288,9 @@ def run(archive_path, output, method, cohort, max_pixels=MAX_PIXELS):
             if method == "qwen":
                 # Fixed train image warms the runtime without consuming or inspecting test labels.
                 warmup = sample(inventory(archive), "train", 1, SEED)[0]
-                backend, profile, peaks = load_qwen(prepare_image(archive.read(warmup.image)), max_pixels)
+                backend, profile, peaks = load_qwen(
+                    prepare_image(archive.read(warmup.image)), max_pixels, PROMPTS[prompt_version]
+                )
                 return {"warmup_id": warmup.key, **profile}
             return {}
 
@@ -310,10 +325,11 @@ def main():
     parser.add_argument("--method", choices=("qwen", "tesseract"), required=True)
     parser.add_argument("--cohort", choices=COHORTS, required=True)
     parser.add_argument("--max-pixels", default=MAX_PIXELS, type=int)
+    parser.add_argument("--prompt-version", choices=PROMPTS, default=PROMPT_VERSION)
     args = parser.parse_args()
     if args.max_pixels < MIN_PIXELS or (args.method != "qwen" and args.max_pixels != MAX_PIXELS):
         parser.error("--max-pixels is a Qwen option and must be at least the processor minimum")
-    run(args.archive, args.output, args.method, args.cohort, args.max_pixels)
+    run(args.archive, args.output, args.method, args.cohort, args.max_pixels, args.prompt_version)
 
 
 if __name__ == "__main__":

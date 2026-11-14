@@ -95,6 +95,22 @@ python field_review.py work/receipt-v2/qwen-full-v2.json
 
 [Dev and full test policy results](field-review-results.json)
 
+## Address prompt experiment
+
+The paired run isolates the address instruction, with the official FP16 checkpoint, original image budget and generation settings. The ten fixed train-development receipts cover formatting differences, missing or extra content, reading errors and three clean controls. This diagnostic subset is intentionally enriched for errors.
+
+```bash
+cohort=address-dev10
+dir="work/address/$cohort"
+python benchmark_receipts.py --archive work/sroie-kaggle.zip --method qwen --cohort "$cohort" --prompt-version receipt-fields-v1 --output "$dir/baseline.json"
+python benchmark_receipts.py --archive work/sroie-kaggle.zip --method qwen --cohort "$cohort" --prompt-version receipt-address-v2 --output "$dir/candidate.json"
+python compare_addresses.py "$dir/baseline.json" "$dir/candidate.json" --output "$dir/comparison.json"
+```
+
+Run both prompts in the same GPU session. Each output gets a separate checkpoint. The comparator checks the ordered receipt IDs, labels, model revision, archive hash, runtime and inference settings. The primary score stays unchanged. The secondary address score treats periods, commas, semicolons and colons as word boundaries and keeps slashes, hyphens and word order. Use `--inspect-label RECEIPT_ID` to flag a suspected label issue without editing the label. Store per-receipt reports outside Git.
+
+Run the same commands with `cohort=dev` only when the ten-receipt comparison reports `advance: true`. Run with `cohort=full` only after the 50-receipt dev comparison also advances. Reports for the existing benchmark remain the historical baseline.
+
 ## Visual token budget
 
 The pinned Qwen processor ran on the same 50 train dev receipts at two image budgets. At the original pixel cap, its per-receipt counts matched every recorded GPU dev count. Reducing the cap halved the median number of visual tokens from 1,241 to 620. This measures input size. The lower-budget checkpoint still needs matched GPU inference runs to measure extraction accuracy, memory, and latency. [Per-receipt token counts](visual-token-profile.json)
