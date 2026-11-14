@@ -58,7 +58,7 @@ Run from the repository root with Python 3.11+. Install Tesseract with English l
 
 ```powershell
 New-Item -ItemType Directory -Path work -Force | Out-Null
-curl.exe -fL https://www.kaggle.com/api/v1/datasets/download/urbikn/sroie-datasetv2 -o work/sroie-kaggle.zip
+curl.exe -fL "https://api.kaggle.com/v1/datasets/download/urbikn/sroie-datasetv2?datasetVersionNumber=4" -o work/sroie-kaggle.zip
 python -m pip install -r requirements-review.txt
 python receipt_pipeline.py benchmark --archive work/sroie-kaggle.zip --method tesseract --limit 20 --output work/receipt-v2/tesseract-local-pilot20.json
 python -m streamlit run review_app.py --server.address 127.0.0.1

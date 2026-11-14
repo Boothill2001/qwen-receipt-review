@@ -15,7 +15,7 @@ The historical notebook embeds a snapshot of the original code and reproduces th
 
 ## Reproduce
 
-Run from the repository root. All commands take the Kaggle SROIE v2 ZIP as downloaded, without unpacking or repacking it. Copy the exact bytes between environments. See the expected SHA-256 and excluded IDs in [data-audit.json](../data-audit.json).
+Run from the repository root. All commands take the original ZIP from Kaggle dataset `urbikn/sroie-datasetv2`, version **4**. The dataset name contains “v2” and Kaggle versions its uploads separately. Copy the archive bytes between environments. See the expected SHA-256 and excluded IDs in [data-audit.json](../data-audit.json).
 
 On Ubuntu with a suitable CUDA-enabled PyTorch runtime, Python 3.11 or newer, access to Hugging Face and write access to a persistent local disk:
 
@@ -26,7 +26,7 @@ python -m pip install -r requirements-gpu.txt
 nvidia-smi
 python -c 'import torch; print(torch.__version__, torch.version.cuda); assert torch.cuda.is_available()'
 mkdir -p work/receipt-v2
-curl -fL https://www.kaggle.com/api/v1/datasets/download/urbikn/sroie-datasetv2 -o work/sroie-kaggle.zip
+curl -fL "https://api.kaggle.com/v1/datasets/download/urbikn/sroie-datasetv2?datasetVersionNumber=4" -o work/sroie-kaggle.zip
 python benchmark_receipts.py --archive work/sroie-kaggle.zip --method qwen --cohort smoke --output work/receipt-v2/qwen-smoke-v2.json
 python benchmark_receipts.py --archive work/sroie-kaggle.zip --method qwen --cohort dev --output work/receipt-v2/qwen-dev-v2.json
 python benchmark_receipts.py --archive work/sroie-kaggle.zip --method tesseract --cohort dev --output work/receipt-v2/tesseract-dev-v2.json
