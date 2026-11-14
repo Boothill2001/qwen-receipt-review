@@ -1,0 +1,75 @@
+{
+  "qwen_status": "pilot20_completed",
+  "checkpoint_revision": "cc594898137f460bfe9f0759e9844b3ce807cfb5",
+  "archive_sha256": "e4502ab884e5fe49e138673f16f6fa72ae0d5fa1d59a2b59a860a2d75e534844",
+  "split": "test",
+  "seed": 42,
+  "receipt_ids": [
+    "X51005677336",
+    "X51006619784",
+    "X51005757308",
+    "X51005719898",
+    "X510056849111",
+    "X51007339119",
+    "X51006335818",
+    "X51006334770",
+    "X51006349085",
+    "X51007433809",
+    "X51006327960",
+    "X51005447851",
+    "X51005568894",
+    "X51007231274",
+    "X51006350737",
+    "X51006401845",
+    "X51007846310",
+    "X51007339159",
+    "X51005444046",
+    "X51005433518"
+  ],
+  "ocr_baselines": {
+    "tesseract": {
+      "documents": 20,
+      "schema_valid": 20,
+      "exact_all_fields": 0,
+      "field_exact": {
+        "company": 1,
+        "date": 11,
+        "address": 3,
+        "total": 9
+      },
+      "needs_review": 16,
+      "rules_passed": 4,
+      "incorrect_among_rules_passed": 4,
+      "wrong_total": 11,
+      "wrong_total_flagged": 11,
+      "wrong_total_caught_by_evidence": 2,
+      "latency_ms": {
+        "median": 1019.21,
+        "p95_nearest_rank": 1748.9
+      }
+    },
+    "annotated-ocr": {
+      "documents": 20,
+      "schema_valid": 20,
+      "exact_all_fields": 2,
+      "field_exact": {
+        "company": 8,
+        "date": 14,
+        "address": 6,
+        "total": 11
+      },
+      "needs_review": 9,
+      "rules_passed": 11,
+      "incorrect_among_rules_passed": 9,
+      "wrong_total": 9,
+      "wrong_total_flagged": 7,
+      "wrong_total_caught_by_evidence": 0,
+      "latency_ms": {
+        "median": 0.69,
+        "p95_nearest_rank": 1.23
+      }
+    }
+  },
+  "qwen_scope": "20-image pilot; separate from full OCR benchmark",
+  "qwen_summary_file": "qwen-pilot20-summary.json"
+}

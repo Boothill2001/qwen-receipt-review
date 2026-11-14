@@ -1,0 +1,36 @@
+{
+  "source": "https://www.kaggle.com/datasets/urbikn/sroie-datasetv2",
+  "archive_sha256": "e4502ab884e5fe49e138673f16f6fa72ae0d5fa1d59a2b59a860a2d75e534844",
+  "splits": {
+    "train": {
+      "pairs": 626,
+      "with_ocr_boxes": 626
+    },
+    "test": {
+      "pairs": 347,
+      "with_ocr_boxes": 347
+    }
+  },
+  "missing_gold_fields": {
+    "train": 2,
+    "test": 0
+  },
+  "identical_image_hashes_across_splits": 7,
+  "clean_test_pairs": 337,
+  "excluded_test_receipts": {
+    "overlap_with_train": [
+      "X51006328937",
+      "X51006328967",
+      "X51006329388",
+      "X51006401853",
+      "X51009008095",
+      "X51009453729",
+      "X51009568881"
+    ],
+    "duplicate_in_test": [
+      "X51005301666",
+      "X51005684949",
+      "X51009447842"
+    ]
+  }
+}

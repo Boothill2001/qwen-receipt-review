@@ -1,0 +1,10 @@
+__pycache__/
+.venv/
+*.zip
+*.safetensors
+local-runs/
+data/
+work/
+.env
+.streamlit/secrets.toml
+.ipynb_checkpoints/

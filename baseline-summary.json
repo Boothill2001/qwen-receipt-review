@@ -1,0 +1,46 @@
+{
+  "source": "https://www.kaggle.com/datasets/urbikn/sroie-datasetv2",
+  "archive_sha256": "e4502ab884e5fe49e138673f16f6fa72ae0d5fa1d59a2b59a860a2d75e534844",
+  "split": "test",
+  "limit": 0,
+  "seed": 42,
+  "method": "annotated-ocr",
+  "test_exclusions": {
+    "overlap_with_train": [
+      "X51006328937",
+      "X51006328967",
+      "X51006329388",
+      "X51006401853",
+      "X51009008095",
+      "X51009453729",
+      "X51009568881"
+    ],
+    "duplicate_in_test": [
+      "X51005301666",
+      "X51005684949",
+      "X51009447842"
+    ]
+  },
+  "model": null,
+  "model_revision": null,
+  "adapter": null,
+  "prompt_version": null,
+  "summary": {
+    "documents": 337,
+    "schema_valid": 337,
+    "exact_all_fields": 18,
+    "field_exact": {
+      "company": 183,
+      "date": 281,
+      "address": 82,
+      "total": 153
+    },
+    "needs_review": 124,
+    "rules_passed": 213,
+    "incorrect_among_rules_passed": 195,
+    "latency_ms": {
+      "median": 0.75,
+      "p95_nearest_rank": 1.56
+    }
+  }
+}
