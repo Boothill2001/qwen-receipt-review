@@ -64,7 +64,19 @@ The new CLI processed 50 SROIE train development receipts and all 337 clean test
 | B · Legacy OCR | 52/337 | 52/52 | 285 | 96/105 | 3 |
 | C · Contextual OCR | 48/337 | 48/48 | 289 | 103/105 | 3 |
 
-C sent a net seven additional wrong nonempty totals to review relative to B. Every record it passed still had an error in at least one of the four fields. This result argues for using total evidence as a field-level signal and measuring any record-level policy on all fields. The test run measured Tesseract only. The Qwen pilot remains the sole measured Qwen cohort. [Aggregate JSON and run manifests](tesseract-gates-summary.json)
+C sent a net seven additional wrong nonempty totals to review relative to B. Every record it passed still had an error in at least one of the four fields. This result argues for using total evidence as a field-level signal and measuring any record-level policy on all fields. The figures above come from the local Tesseract 5.5.0 run. The Kaggle Tesseract 5.3.4 run was separate and matched 137/337 totals and 4/337 complete records. [Local Tesseract aggregate JSON and manifests](tesseract-gates-summary.json)
+
+## Measured Qwen gate comparison
+
+Qwen processed all 337 test receipts on Tesla T4 ×2 and returned 337 valid JSON objects with zero inference errors. The model matched 328/337 totals, 305/337 companies, 295/337 dates, 230/337 addresses and 185/337 complete records. Its synchronized generation median was 9.41 s and p95 was 10.95 s after warm-up. [Aggregate JSON and run manifest](qwen-full-summary.json)
+
+| Gate | Needs review | Correct records sent to review | Incorrect among passed | Wrong totals sent to review |
+| --- | ---: | ---: | ---: | ---: |
+| A · Field validation | 54/337 | 12 | 110/283 | 1/9 |
+| B · Legacy OCR | 288/337 | 158 | 22/49 | 8/9 |
+| C · Contextual OCR | 261/337 | 137 | 28/76 | 8/9 |
+
+For B, 199 receipts had unclear OCR evidence, 62 had conflicting candidates and 21 had OCR totals that disagreed with Qwen. Format reasons can overlap these counts. C reduced review by 27 receipts net and admitted six more incorrect complete records net. Address mismatches accounted for 18 of the 22 incorrect passes under B and 25 of the 28 under C. Review policy should use evidence at the field level and measure each downstream action on its own required fields.
 
 ## Engineering decisions for an interview
 
@@ -74,7 +86,7 @@ C sent a net seven additional wrong nonempty totals to review relative to B. Eve
 | Replay A/B/C on identical fields and OCR | Easier to attribute decision changes to the gate. OCR and VLM errors can be correlated, and B/C verify just one field. | **Why might a better total gate increase the number of bad records passed?** It admits more receipts with correct totals; an incorrect address still makes the full record wrong. Report false-pass count, coverage and selective risk jointly. |
 | Pin input, checkpoint and software; profile stages | Strict manifests require a new artifact after runtime drift. More synchronization changes production timing. | **Why can 10 s per receipt hide the bottleneck?** It may include CPU PNG preparation, OCR and transfers in addition to inference. Stage and CUDA metrics answer different capacity questions. |
 
-**STAR.** A GPU pilot demonstrated extraction, and the review policy still allowed an incorrect full record through. The task was to scale evaluation without losing progress and measure review decisions separately. The implementation pins the cohort, persists one result per receipt, and evaluates three policies against the same output. The measured results in this upgrade cover the CPU test suite and Tesseract. The historical Qwen result remains 12/20 normalized four-field exact matches. A new full Qwen result requires a CUDA run.
+**STAR.** A GPU pilot demonstrated extraction, and the review policy still allowed an incorrect full record through. The task was to scale evaluation without losing progress and measure review decisions separately. The implementation pins the cohort, persists one result per receipt, and evaluates three policies against the same output. On 337 receipts, Qwen matched 185 complete records. The contextual gate reduced review by 27 receipts net and increased incorrect passes by six, which helps explain why a total-only check cannot clear an entire record.
 
 ## Serving proposal
 

@@ -2,9 +2,20 @@
 
 **A receipt extraction and human review workbench.** Qwen reads the scan, an independent OCR check looks for conflicting totals, and a reviewer can inspect the evidence before exporting JSON.
 
-[Measured pilot](#measured-pilot) · [Review case](#review-case) · [Full evaluation workflow](docs/evaluation.md) · [GPU pilot notebook](qwen_sroie_gpu.ipynb)
+[Full benchmark](#full-benchmark) · [Measured pilot](#measured-pilot) · [Review case](#review-case) · [Reproduce](docs/evaluation.md)
 
 ![Receipt Review showing a magnified OCR region and four editable fields. Qwen extracts 22.26 while the workbench flags conflicting OCR evidence.](assets/qwen-review.png)
+
+## Full benchmark
+
+Qwen2.5-VL-7B-Instruct FP16 ran on two Tesla T4 GPUs. The Kaggle run verified the same 337 SROIE test IDs and dataset hash for Qwen and Tesseract. Counts use normalized exact match.
+
+| Pipeline | Total | All four fields | Median extraction with legacy OCR gate |
+| --- | ---: | ---: | ---: |
+| Qwen2.5-VL-7B-Instruct FP16 | **328/337** | **185/337** | 10.59 s |
+| Tesseract + rules (Kaggle log) | 137/337 | 4/337 | 1.16 s |
+
+The legacy OCR gate routed **288/337** Qwen predictions to review, including **158** that matched all four labels. Unclear OCR evidence was the most frequent flag (199 receipts). The contextual gate routed **261/337** to review and let **28** incorrect records through, compared with **22** for the legacy gate. Both routed **8 of 9** wrong totals to review. [Qwen aggregate report](docs/qwen-full-summary.json) · [Evaluation protocol](docs/evaluation.md)
 
 ## Measured pilot
 
@@ -17,7 +28,7 @@ Qwen2.5-VL-7B-Instruct FP16 and Tesseract + rules processed the **same 20 held-o
 
 ![Bar chart comparing total and four-field exact matches on the same 20 receipts.](assets/pilot20-results.png)
 
-The measured Qwen path includes the independent OCR check. Times are per receipt after model loading and exclude ZIP reads, image preparation, and the UI. The sample is a pilot, so the counts describe these 20 receipts. The full dataset benchmark covers the two OCR baselines across 337 receipts. [Qwen pilot summary and model revision](qwen-pilot20-summary.json) · [Full OCR baseline](benchmark-v2-summary.json)
+The measured pilot Qwen path includes the independent OCR check. Pilot times are per receipt after model loading and exclude ZIP reads, image preparation, and the UI. The full benchmark above uses the newer runner, which includes image preparation in its timing. [Qwen pilot summary and model revision](qwen-pilot20-summary.json) · [Historical full OCR baseline](benchmark-v2-summary.json)
 
 ## Review case
 
@@ -50,7 +61,7 @@ Import [qwen_sroie_gpu.ipynb](qwen_sroie_gpu.ipynb) into a GPU notebook, enable 
 
 ### Run the 337-receipt evaluation
 
-The full Qwen experiment uses a resumable CLI on CUDA. Each receipt commits to SQLite before the next begins. Both image pipelines use the same ordered IDs. The report compares three review policies per prediction, keeps malformed outputs and failures, and records inference, OCR, validation and preprocessing times. The measured Qwen result above still covers 20 receipts. [Commands, metrics and evaluation limits](docs/evaluation.md)
+The full Qwen experiment uses a resumable CLI on CUDA. Each receipt commits to SQLite before the next begins. Both image pipelines use the same ordered IDs. The report compares three review policies per prediction, keeps malformed outputs and failures, and records inference, OCR, validation and preprocessing times. [Commands, metrics and evaluation limits](docs/evaluation.md)
 
 ### Open the workbench
 
