@@ -111,6 +111,16 @@ Run both prompts in the same GPU session. Each output gets a separate checkpoint
 
 Run the same commands with `cohort=dev` only when the ten-receipt comparison reports `advance: true`. Run with `cohort=full` only after the 50-receipt dev comparison also advances. Reports for the existing benchmark remain the historical baseline.
 
+### Result on ten diagnostic receipts
+
+Both prompts ran on two Tesla T4 GPUs and returned 10/10 schema-valid outputs. Address exact match stayed at **3/10** and format-tolerant match stayed at **6/10**. The candidate fixed one receipt and regressed on one clean control. All previously correct company, date and total predictions stayed correct. The experiment stopped before the 50-receipt dev run and the 337-receipt test run. [Aggregate result and report hashes](address-dev10-result.json)
+
+- On `X51006008086`, the candidate removed the separate `AEON SHAH ALAM` line and matched the address label.
+- On `X51006441474`, the candidate added the printed `Bentong-2` line above the tax registration number. The benchmark label starts with the street address. This is a boundary error under the benchmark definition.
+- The candidate still omitted the separate `OASIS VILLAGE` line on `X51008123586` and still read `Maluri` as `Malluri` on `X51005568913`. The street suffix on `X51006556818` is faint. The labeled `23/1` and the predicted `23/4` remain a mismatch pending closer scan inspection.
+
+The next development experiment should test address-region selection against the unchanged full-image prompt. Use a higher-resolution crop and OCR agreement on house, street and postal tokens as an additional check. Keep the printed branch header out of the street address when the dataset defines it as a separate line.
+
 ## Visual token budget
 
 The pinned Qwen processor ran on the same 50 train dev receipts at two image budgets. At the original pixel cap, its per-receipt counts matched every recorded GPU dev count. Reducing the cap halved the median number of visual tokens from 1,241 to 620. This measures input size. The lower-budget checkpoint still needs matched GPU inference runs to measure extraction accuracy, memory, and latency. [Per-receipt token counts](visual-token-profile.json)

@@ -1,0 +1,73 @@
+{
+  "cohort": "address-dev10",
+  "documents": 10,
+  "receipt_ids": [
+    "X51005453802",
+    "X51008145504",
+    "X51006414394",
+    "X51006008086",
+    "X51008123586",
+    "X51006556818",
+    "X51005568913",
+    "X51006388065",
+    "X51006441474",
+    "X51008164997"
+  ],
+  "baseline_prompt_version": "receipt-fields-v1",
+  "candidate_prompt_version": "receipt-address-v2",
+  "archive_sha256": "e4502ab884e5fe49e138673f16f6fa72ae0d5fa1d59a2b59a860a2d75e534844",
+  "model_revision": "cc594898137f460bfe9f0759e9844b3ce807cfb5",
+  "schema_valid": [
+    10,
+    10
+  ],
+  "metrics": {
+    "company": {
+      "baseline_correct": 9,
+      "candidate_correct": 9,
+      "fixed": 0,
+      "regressed": 0
+    },
+    "date": {
+      "baseline_correct": 10,
+      "candidate_correct": 10,
+      "fixed": 0,
+      "regressed": 0
+    },
+    "address": {
+      "baseline_correct": 3,
+      "candidate_correct": 3,
+      "fixed": 1,
+      "regressed": 1
+    },
+    "total": {
+      "baseline_correct": 10,
+      "candidate_correct": 10,
+      "fixed": 0,
+      "regressed": 0
+    },
+    "address_format_tolerant": {
+      "baseline_correct": 6,
+      "candidate_correct": 6,
+      "fixed": 1,
+      "regressed": 1
+    }
+  },
+  "criteria": {
+    "both_runs_schema_valid": true,
+    "content_error_fixed": true,
+    "controls_still_match": false,
+    "no_format_tolerant_regressions": false,
+    "no_other_field_regressions": true
+  },
+  "advance": false,
+  "report_sha256": {
+    "baseline": "b14619c145f029944049f5f3753617d198c4a68296597dcbafc60d9950472bc7",
+    "candidate": "479f1dd4e9a1cad489fca768e029201f5fb9c30a606ab3af322f7c06e4b3e12e"
+  },
+  "source_commit": "e6dd949bfefa9a218752be308ea757b4b7a90dc9",
+  "scan_audit": {
+    "X51006441474": "Bentong-2 is printed above the tax registration line and excluded from the address label.",
+    "X51006556818": "The street suffix is faint in the original scan. Retain the benchmark label and inspect at higher magnification."
+  }
+}
