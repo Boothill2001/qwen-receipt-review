@@ -1,10 +1,36 @@
 # Qwen Receipt Review
 
-**A receipt extraction and human review workbench.** Qwen reads the scan, an independent OCR check looks for conflicting totals, and a reviewer can inspect the evidence before exporting JSON.
+**Turn a scanned receipt into structured JSON with traceable human review.** Qwen2.5-VL extracts the merchant, date, address, and total. Tesseract checks the total against the scan. A reviewer can correct the fields and export the original and approved values.
 
-[Try three recorded cases](#try-three-recorded-cases) · [Full benchmark](#full-benchmark) · [Review policy](docs/evaluation.md#field-level-review) · [Reproduce](docs/evaluation.md#reproduce)
+[Input and output](#input-and-output) · [Try three recorded cases](#try-three-recorded-cases) · [Full benchmark](#full-benchmark) · [Reproduce](docs/evaluation.md#reproduce)
 
-![Case replay showing a verified total of 23.80 and an incomplete address that passed the contextual gate.](assets/case-replay.png)
+## Input and output
+
+| Step | Recorded example from SROIE receipt `X51006334927` |
+| --- | --- |
+| **Input** | A JPEG or PNG receipt. [Open the sample scan](assets/replay/X51006334927.webp). |
+| **Qwen output** | Four JSON fields. The model predicted `"total": "6.04"`. |
+| **OCR evidence** | Tesseract found `Total RM 6.40` on the scan. |
+| **Review decision** | **Needs review** because the two amounts disagree. The reviewer inspects the scan, corrects the fields, and approves the export. |
+| **Approved output** | JSON with `original` and `reviewed` field values, the approval timestamp, and the reasons that triggered review. |
+
+![Receipt input and extraction result. The OCR crop shows 6.40, Qwen predicts 6.04, and the decision is Needs review.](assets/wrong-total-review.png)
+
+<details>
+<summary>See the extracted JSON</summary>
+
+This is the parsed Qwen prediction before human review.
+
+```json
+{
+  "company": "BIRU PETROLEUM",
+  "date": "17/11/16",
+  "address": "KELANA JAYA, 47301 PETALING SELANGOR DARUL EHSAN.",
+  "total": "6.04"
+}
+```
+
+</details>
 
 ## Try three recorded cases
 
@@ -22,9 +48,9 @@ The **Case replay** tab opens by default and runs on CPU with the assets in this
 | `X51005719857` | OCR supports 23.80. Gate C passes the receipt even though the address omits the shopping gallery. |
 
 <details>
-<summary>See a wrong total caught by OCR</summary>
+<summary>See a correct total with an incomplete address</summary>
 
-![OCR highlights 6.40 on the scan while Qwen predicts 6.04. The contextual gate sends the receipt to review.](assets/wrong-total-review.png)
+![OCR supports the 23.80 total while the address differs from the label. The contextual gate passes the receipt.](assets/case-replay.png)
 
 </details>
 
