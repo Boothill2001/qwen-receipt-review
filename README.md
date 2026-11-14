@@ -2,7 +2,7 @@
 
 **A receipt extraction and human review workbench.** Qwen reads the scan, an independent OCR check looks for conflicting totals, and a reviewer can inspect the evidence before exporting JSON.
 
-[Measured pilot](#measured-pilot) · [Review case](#review-case) · [Run it](#run-it) · [GPU notebook](qwen_sroie_gpu.ipynb)
+[Measured pilot](#measured-pilot) · [Review case](#review-case) · [Full evaluation workflow](docs/evaluation.md) · [GPU pilot notebook](qwen_sroie_gpu.ipynb)
 
 ![Receipt Review showing a magnified OCR region and four editable fields. Qwen extracts 22.26 while the workbench flags conflicting OCR evidence.](assets/qwen-review.png)
 
@@ -47,6 +47,10 @@ The dataset audit found seven identical-image hashes shared by train and test, p
 ### Reproduce the GPU pilot
 
 Import [qwen_sroie_gpu.ipynb](qwen_sroie_gpu.ipynb) into a GPU notebook, enable Internet, and choose a runtime with enough memory for the FP16 checkpoint. The verified run used Kaggle T4 ×2. The notebook checks the dataset hash, loads the pinned checkpoint, runs a one-image smoke test, then evaluates the same 20 receipts with all three methods. Download `qwen-pilot20.json` and `tesseract-pilot20.json` into `work/receipt-v2/`.
+
+### Run the 337-receipt evaluation
+
+The full Qwen experiment uses a resumable CLI on CUDA. Each receipt commits to SQLite before the next begins. Both image pipelines use the same ordered IDs. The report compares three review policies per prediction, keeps malformed outputs and failures, and records inference, OCR, validation and preprocessing times. The measured Qwen result above still covers 20 receipts. [Commands, metrics and evaluation limits](docs/evaluation.md)
 
 ### Open the workbench
 

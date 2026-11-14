@@ -10,6 +10,7 @@ from zipfile import BadZipFile, ZipFile
 import streamlit as st
 from PIL import Image, ImageDraw
 
+from evaluation_metrics import GATES, gate_metrics
 from receipt_pipeline import (
     FIELDS, OLLAMA_MODEL, OllamaBackend, TesseractBackend, extract_image,
     inventory, prepare_image, review_reasons, sha256_file, summarize,
@@ -244,10 +245,32 @@ def benchmark_view():
                       "Sai total do bằng chứng chặn thêm": percent(s["wrong_total_caught_by_evidence"], s["wrong_total"]),
                       "p50 ms": s["latency_ms"]["median"], "p95 ms": s["latency_ms"]["p95_nearest_rank"]})
     st.dataframe(stats, hide_index=True)
-    st.caption("Bảng so sánh các report có cùng split và cùng danh sách ID. Latency gồm OCR, trích xuất và kiểm tra sau khi nạp model. Ca hỏng vẫn nằm trong mẫu số.")
+    st.caption("Bảng so sánh các report có cùng split và danh sách ID. Ca hỏng vẫn nằm trong mẫu số. "
+               "Runner mới tính thêm thời gian chuẩn bị ảnh so với report pilot gốc.")
     name = st.selectbox("Report để xem ca", names)
+    rows = filtered[name]
+    if "metrics" in reports[name] and all("gate_reasons" in row for row in rows):
+        gate_names = dict(zip(GATES, ["A · Kiểm tra trường", "B · OCR gốc", "C · OCR theo ngữ cảnh"]))
+        with st.expander("So sánh ba gate trên cùng dự đoán", expanded=True):
+            gate_rows = []
+            for gate, label in gate_names.items():
+                g = gate_metrics(rows, gate)
+                gate_rows.append({
+                    "Gate": label, "Qua": percent(g["coverage"]["count"], g["coverage"]["n"]),
+                    "Sai trong nhóm qua": percent(g["selective_risk"]["count"], g["selective_risk"]["n"]),
+                    "Cần duyệt": g["review_workload"]["count"], "Qua nhưng sai": g["false_pass_count"],
+                    "Đúng nhưng cần duyệt": g["correct_flagged_count"],
+                    "Chặn total sai": percent(g["wrong_total_detected"]["count"], g["wrong_total_detected"]["n"]),
+                })
+            st.dataframe(gate_rows, hide_index=True)
+        gate = st.selectbox("Hiện vùng và trạng thái theo gate", GATES, index=1, format_func=gate_names.get, key=f"gate:{name}")
+        rows = [{
+            **row, "reasons": row["gate_reasons"][gate],
+            "status": "NEEDS_REVIEW" if row["gate_reasons"][gate] else "RULES_PASSED",
+            "evidence": ({}, row["evidence"], row["contextual_evidence"])[GATES.index(gate)],
+        } for row in rows]
     case_filter = st.radio("Nhóm ca", ["Tất cả", "Cần duyệt", "Qua kiểm tra nhưng sai"], horizontal=True)
-    cases = [row for row in filtered[name] if case_filter == "Tất cả"
+    cases = [row for row in rows if case_filter == "Tất cả"
              or (case_filter == "Cần duyệt" and row["status"] == "NEEDS_REVIEW")
              or (case_filter == "Qua kiểm tra nhưng sai" and row["status"] == "RULES_PASSED" and not all(row["match"].values()))]
     if not cases:
