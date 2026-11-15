@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw
 
 from evaluation_metrics import GATES, gate_metrics
 from field_review import total_review_reasons
+from monitoring import INCIDENT_DAY, INCIDENT_RECEIPT, daily_operations, verification_text
 from receipt_pipeline import (
     FIELDS, OLLAMA_MODEL, OllamaBackend, TesseractBackend, extract_image,
     inventory, prepare_image, review_reasons, sha256_file, summarize,
@@ -146,12 +147,19 @@ def case_replay():
     source = bundle["provenance"]
     cases = {case["title"]: case for case in bundle["cases"]}
     st.caption(f"{source['model']} · Saved GPU predictions from {source['documents']} SROIE receipts")
+    incident_case = st.session_state.pop("open_incident_receipt", False)
+    if incident_case:
+        st.session_state.replay_case = next(name for name, case in cases.items()
+                                           if case["row"]["key"] == INCIDENT_RECEIPT)
+        st.session_state.replay_gate = GATES[2]
+    st.button("Investigate the review spike", on_click=navigate, args=("Monitoring",))
     choice = st.selectbox("Case", list(cases), key="replay_case")
     case = cases[choice]
     row = case["row"]
     st.write(case["lesson"])
     st.caption(f"SROIE receipt {row['key']}")
-    gate = st.radio("Decision policy", GATES, index=1, format_func=GATE_LABELS.get,
+    st.session_state.setdefault("replay_gate", GATES[1])
+    gate = st.radio("Decision policy", GATES, index=None, format_func=GATE_LABELS.get,
                     horizontal=True, key="replay_gate")
     selected = apply_gate(row, gate)
     candidates = selected["evidence"].get("candidates", [])
@@ -203,6 +211,63 @@ def case_replay():
                          "archive_sha256": source["archive_sha256"], "timings_ms": row["timings_ms"]})
                 st.download_button("Download recorded case", json.dumps(row, ensure_ascii=False, indent=2),
                                    f"{row['key']}.json", "application/json", on_click="ignore")
+    if row["key"] == INCIDENT_RECEIPT:
+        prompt_decision()
+
+
+def navigate(view, incident_receipt=False):
+    st.session_state.workspace = view
+    if incident_receipt:
+        st.session_state.open_incident_receipt = True
+
+
+def prompt_decision():
+    result = json.loads((PROJECT / "docs" / "address-dev10-result.json").read_text(encoding="utf-8"))
+    exact = result["metrics"]["address"]
+    st.subheader("Why we kept the original prompt")
+    st.caption(f"Measured Qwen A/B test · {result['documents']} diagnostic SROIE train receipts")
+    st.write(f"Address exact match stayed at {exact['baseline_correct']}/{result['documents']}. "
+             f"The new prompt fixed {exact['fixed']} address and regressed on {exact['regressed']}.")
+    st.table([
+        {"Receipt": "X51006008086", "Change": "Removed the extra AEON SHAH ALAM line",
+         "Result": "Fixed"},
+        {"Receipt": "X51006441474", "Change": "Included the printed Bentong-2 branch header",
+         "Result": "Regression"},
+    ])
+    st.write("The candidate failed the clean-control check. Keep the original prompt and test a dedicated address crop next.")
+
+
+def monitoring_view():
+    days = daily_operations()
+    by_day = {row["date"]: row for row in days}
+    st.subheader("Review operations")
+    st.caption("Simulated operations · 14 days. The linked receipt comes from the measured SROIE benchmark.")
+    selected = st.selectbox("Investigation date", list(by_day), index=list(by_day).index(INCIDENT_DAY),
+                            format_func=lambda day: day.strftime("%b %d, %Y"), key="monitor_day")
+    row = by_day[selected]
+    if selected == INCIDENT_DAY:
+        st.warning("Review spike · Address checks drove most of the new review work.")
+        st.button("Open recorded receipt", type="primary", on_click=navigate, args=("Case replay", True),
+                  help="Recorded SROIE benchmark example linked to illustrate the simulated incident.")
+    ops = st.columns(3)
+    ops[0].metric("Receipts", row["received"])
+    ops[1].metric("Needs review", f"{row['review_rate']:.1f}%")
+    ops[2].metric("End-of-day backlog", row["backlog"])
+    st.caption(f"Inference p95 {row['inference_p95_seconds']:.1f} s · "
+               f"{row['inference_errors']} inference errors · {row['completed']} reviews completed")
+    trend, detail = st.columns([1.12, 1], gap="large")
+    with trend:
+        st.markdown("**Daily review rate (%)**")
+        st.line_chart([{"Date": item["date"].isoformat(), "Needs review (%)": item["review_rate"]}
+                       for item in days], x="Date", y="Needs review (%)", height=220)
+    with detail:
+        st.markdown("**Selected day · Review reasons**")
+        st.table([{"Primary reason": reason, "Receipts": count} for reason, count in row["reasons"].items()])
+        st.markdown("**Verification**")
+        st.write(f"Address corrections · {verification_text(*row['address_edits'])}")
+        st.write(f"Total corrections · {verification_text(*row['total_edits'])}")
+        st.write(f"Errors in sampled auto-passes · {verification_text(*row['auto_pass_audit'])}")
+        st.caption("Corrections use verified fields as denominators. Auto-pass errors use audited receipts.")
 
 
 def new_receipt():
@@ -375,10 +440,13 @@ def benchmark_view():
 st.set_page_config(page_title="Receipt Review", layout="wide", initial_sidebar_state="collapsed")
 st.title("Receipt Review")
 st.caption("Receipt extraction, OCR evidence and human review")
-view = st.segmented_control("Workspace", ["Case replay", "Live extraction", "Benchmark"], default="Case replay",
-                            selection_mode="single")
+st.session_state.setdefault("workspace", "Case replay")
+view = st.segmented_control("Workspace", ["Case replay", "Monitoring", "Live extraction", "Benchmark"],
+                            selection_mode="single", key="workspace")
 if view == "Case replay":
     case_replay()
+elif view == "Monitoring":
+    monitoring_view()
 elif view == "Benchmark":
     benchmark_view()
 else:

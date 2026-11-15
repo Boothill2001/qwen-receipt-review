@@ -1,8 +1,29 @@
 # Qwen Receipt Review
 
-**Turn a scanned receipt into structured JSON with traceable human review.** Qwen2.5-VL extracts the merchant, date, address, and total. Tesseract checks the total against the scan. A reviewer can correct the fields and export the original and approved values.
+**The total was correct. The receipt still needed a closer look.**
 
-[Input and output](#input-and-output) · [Try three recorded cases](#try-three-recorded-cases) · [Full benchmark](#full-benchmark) · [Reproduce](docs/evaluation.md#reproduce)
+![Recorded SROIE receipt with OCR evidence for 23.80 and an address missing the shopping gallery. Gate C passes the record.](assets/case-replay.png)
+
+Qwen2.5-VL turns receipt scans into structured JSON. Tesseract checks the amount against the scan, and a reviewer can correct fields before export. In this recorded case, the total check passes while the address is incomplete.
+
+[Walk through the incident](#walk-through-the-incident) · [Input and output](#input-and-output) · [Full benchmark](#full-benchmark) · [Reproduce](docs/evaluation.md#reproduce)
+
+## Walk through the incident
+
+```bash
+python -m pip install -r requirements-review.txt
+python -m streamlit run review_app.py
+```
+
+In **Case replay**, select **Investigate the review spike**. The walkthrough runs on CPU with bundled assets.
+
+1. **Detect the spike.** On November 12, the simulated review rate rises to 64.0%. Reviewers correct 18 of 41 verified addresses, while total corrections stay at 2 of 37 verified amounts. An audit of auto-passes finds 2 incorrect records in a sample of 12.
+2. **Inspect the receipt.** Open the linked SROIE example. OCR supports `23.80`. Switch from gate B to C and watch the decision change to auto-pass even though the model omitted the shopping gallery from the address.
+3. **Decide whether to ship.** In a measured ten-receipt development test, the candidate prompt removed an extra `AEON SHAH ALAM` line on one receipt and added the `Bentong-2` branch header to a previously correct address. Exact address match stayed at 3/10. The candidate failed the clean-control check, so the original prompt stayed in place. [Experiment result](docs/evaluation.md#result-on-ten-diagnostic-receipts)
+
+![Monitoring tab labeled Simulated operations, with the November 12 spike selected and a button to open the recorded receipt.](assets/monitoring-incident.png)
+
+The daily workload and audit counts are simulated. The linked scan, predictions, and A/B result come from recorded Qwen runs.
 
 ## Input and output
 
@@ -14,10 +35,10 @@
 | **Review decision** | **Needs review** because the two amounts disagree. The reviewer inspects the scan, corrects the fields, and approves the export. |
 | **Approved output** | JSON with `original` and `reviewed` field values, the approval timestamp, and the reasons that triggered review. |
 
-![Receipt input and extraction result. The OCR crop shows 6.40, Qwen predicts 6.04, and the decision is Needs review.](assets/wrong-total-review.png)
-
 <details>
-<summary>See the extracted JSON</summary>
+<summary>See the OCR evidence and extracted JSON</summary>
+
+![Receipt input and extraction result. The OCR crop shows 6.40, Qwen predicts 6.04, and the decision is Needs review.](assets/wrong-total-review.png)
 
 This is the parsed Qwen prediction before human review.
 
@@ -32,27 +53,15 @@ This is the parsed Qwen prediction before human review.
 
 </details>
 
-## Try three recorded cases
+## Explore the recorded cases
 
-```bash
-python -m pip install -r requirements-review.txt
-python -m streamlit run review_app.py
-```
-
-The **Case replay** tab opens by default and runs on CPU with the assets in this repository. Choose a receipt and switch between gates A, B and C to see the decision, OCR region, Qwen response and SROIE label. These are saved Qwen GPU predictions. **Live extraction** runs live inference through local Ollama.
+Choose a receipt and switch between gates A, B and C to see the decision, OCR region, Qwen response and SROIE label.
 
 | Receipt | What to inspect |
 | --- | --- |
 | `X51005677336` | Qwen matches all four labels. OCR surfaces conflicting amounts and holds the receipt. |
 | `X51006334927` | Qwen reads 6.04. The OCR line shows 6.40, so both evidence gates hold it. |
 | `X51005719857` | OCR supports 23.80. Gate C passes the receipt even though the address omits the shopping gallery. |
-
-<details>
-<summary>See a correct total with an incomplete address</summary>
-
-![OCR supports the 23.80 total while the address differs from the label. The contextual gate passes the receipt.](assets/case-replay.png)
-
-</details>
 
 ## Full benchmark
 
