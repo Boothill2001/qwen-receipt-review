@@ -359,7 +359,7 @@ class QwenBackend:
             from peft import PeftModel
             self.model = PeftModel.from_pretrained(self.model, adapter).eval()
 
-    def __call__(self, image_bytes):
+    def __call__(self, image_bytes, *, token_timing=False):
         from PIL import Image, ImageOps
 
         self.last_generation = None
@@ -372,21 +372,42 @@ class QwenBackend:
         inputs = self.processor.apply_chat_template(
             messages, tokenize=True, add_generation_prompt=True, return_dict=True, return_tensors="pt"
         ).to(self.model.device)
-        if self.profile:
+        options = {}
+        first_token_at = None
+        if token_timing:
+            from transformers import StoppingCriteriaList
+
+            def observe_token(input_ids, _scores, **_kwargs):
+                nonlocal first_token_at
+                if first_token_at is None:
+                    self.synchronize()
+                    first_token_at = time.perf_counter()
+                return False
+
+            options["stopping_criteria"] = StoppingCriteriaList([observe_token])
+        if self.profile or token_timing:
             self.synchronize()
             started = time.perf_counter()
         with self.torch.inference_mode():
-            generated = self.model.generate(**inputs, max_new_tokens=MAX_NEW_TOKENS, do_sample=False)
-        if self.profile:
+            generated = self.model.generate(**inputs, max_new_tokens=MAX_NEW_TOKENS, do_sample=False, **options)
+        if self.profile or token_timing:
             self.synchronize()
+            finished = time.perf_counter()
         continuation = generated[:, inputs["input_ids"].shape[1]:]
-        if self.profile:
+        if self.profile or token_timing:
             self.last_generation = {
-                "generation_ms": round((time.perf_counter() - started) * 1000, 2),
+                "generation_ms": round((finished - started) * 1000, 2),
                 "input_tokens": inputs["input_ids"].shape[1],
                 "visual_tokens": int((inputs["input_ids"] == self.model.config.image_token_id).sum().item()),
                 "output_tokens": continuation.shape[1],
             }
+        if token_timing:
+            generated_tokens = continuation.shape[1]
+            self.last_generation.update(
+                ttft_ms=round((first_token_at - started) * 1000, 2) if first_token_at is not None else None,
+                decode_ms_per_token=round((finished - first_token_at) * 1000 / (generated_tokens - 1), 3)
+                if first_token_at is not None and generated_tokens > 1 else None,
+            )
         return self.processor.batch_decode(continuation.cpu(), skip_special_tokens=True)[0]
 
     def synchronize(self):
