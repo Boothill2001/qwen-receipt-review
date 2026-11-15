@@ -89,6 +89,8 @@ On the same **20 SROIE pilot receipts**, 7B matched all four fields on 12, compa
 
 On this receipt, 3B read the lot as `623` and 32B read the road as `556/4`. 7B matched both printed identifiers. The pilot estimates the trade-off on these 20 images. The full comparison is needed to apply the model-selection thresholds. [Pilot comparison JSON](docs/model-sizes-pilot-summary.json) · [Protocol and resource measurements](docs/model-sizes.md)
 
+**Why did the smaller model take longer in this setup?** The same image set the p95 for both 3B and 7B. Both generated 111 tokens. Generation took 11.32 s for 3B and 10.06 s for 7B, while OCR took about 0.87 s in both runs. The original pilot timed the entire generation call. [Per-stage trace](docs/model-size-latency-breakdown.json) · [Single-T4 profiling method](docs/model-sizes.md#single-t4-token-profiling)
+
 ## Measured pilot
 
 Qwen2.5-VL-7B-Instruct FP16 and Tesseract + rules processed the **same 20 held-out SROIE receipts** in one Kaggle session with two NVIDIA T4 GPUs. Counts are normalized exact matches against the dataset labels.

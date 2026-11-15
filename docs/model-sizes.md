@@ -43,3 +43,19 @@ The three reports share 20 ordered SROIE receipt IDs and one dataset hash. All 6
 | 32B | 16/20 | 18/20 | 14/20 | 20/20 | 9/20 | 30.28 / 35.31 s | 7.95 / 12.36 GiB |
 
 Against 7B, both 3B and 32B fixed zero format-tolerant address errors and regressed on the same receipt, `X51006327960`. On the scan the lot is `G23` and the road identifier is `SS6/4`. 3B returned `623` for the lot. 32B returned `556/4` for the road identifier. Each secondary model missed a different identifier. [Original address image region](../assets/model-size-address-evidence.png) · [Pilot comparison and report hashes](model-sizes-pilot-summary.json)
+
+## Single-T4 token profiling
+
+The dual-T4 pilot put the 3B model's output head on a different GPU from its final decoder layers. A second experiment puts each model in its own process on the same single T4. The fixed six-receipt subset includes the p95 receipt `X51005719898` and the slowest receipt `X51005757308` from the paired pilot. Each model runs two passes after warm-up, with the receipt order reversed on the second pass.
+
+- **Model TTFT** measures from entry to `generate()` until the first emitted token is synchronized. CPU preprocessing, image transfer into the model's input device, OCR and JSON parsing fall outside that interval.
+- **Decode time per later token** divides the post-first-token time through synchronized generation completion by the number of remaining tokens. This includes a small generation-loop finalization cost.
+- **GPU telemetry** samples NVML GPU and memory-controller activity every 0.5 s during each model call. Peak allocated/reserved GPU memory comes from PyTorch. NVML memory activity describes time spent reading or writing device memory.
+
+```bash
+python -m pip install -r requirements-gpu.txt bitsandbytes==0.50.2 nvidia-ml-py==13.615.71
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+export CUDA_VISIBLE_DEVICES=0
+python profile_qwen_tokens.py --archive work/sroie-kaggle.zip --output work/scale/3b-token-profile.json --model-size 3b
+python profile_qwen_tokens.py --archive work/sroie-kaggle.zip --output work/scale/7b-token-profile.json --model-size 7b
+```
