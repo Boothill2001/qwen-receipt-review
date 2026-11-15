@@ -75,6 +75,10 @@ Qwen2.5-VL-7B-Instruct FP16 ran on two Tesla T4 GPUs. The Kaggle run verified th
 
 The legacy OCR gate routed **288/337** Qwen predictions to review, including **158** that matched all four labels. The contextual gate routed **261/337** to review and let **28** incorrect records through, compared with **22** for the legacy gate. Both routed **8 of 9** wrong totals to review. A total-only policy supported **82/337** totals, including **one wrong total**. It leaves the other three fields for verification. [Qwen report](docs/qwen-full-summary.json) · [Paired Tesseract report](docs/tesseract-kaggle-summary.json) · [Evaluation protocol](docs/evaluation.md)
 
+### Why 7B?
+
+The 7B FP16 run establishes a measured starting point. The model-size experiment compares 3B, 7B and 32B with the same four-bit recipe, image settings and review policy. It tests whether lower inference cost or higher extraction quality is worth switching to. [Matched comparison protocol and selection thresholds](docs/model-sizes.md)
+
 ## Measured pilot
 
 Qwen2.5-VL-7B-Instruct FP16 and Tesseract + rules processed the **same 20 held-out SROIE receipts** in one Kaggle session with two NVIDIA T4 GPUs. Counts are normalized exact matches against the dataset labels.
