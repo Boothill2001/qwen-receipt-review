@@ -1,0 +1,552 @@
+{
+  "cohort": "pilot",
+  "receipt_ids": [
+    "X51005677336",
+    "X51006619784",
+    "X51005757308",
+    "X51005719898",
+    "X510056849111",
+    "X51007339119",
+    "X51006335818",
+    "X51006334770",
+    "X51006349085",
+    "X51007433809",
+    "X51006327960",
+    "X51005447851",
+    "X51005568894",
+    "X51007231274",
+    "X51006350737",
+    "X51006401845",
+    "X51007846310",
+    "X51007339159",
+    "X51005444046",
+    "X51005433518"
+  ],
+  "archive_sha256": "e4502ab884e5fe49e138673f16f6fa72ae0d5fa1d59a2b59a860a2d75e534844",
+  "prompt_version": "receipt-fields-v1",
+  "image_config": {
+    "max_edge": 2048,
+    "source_max_pixels": 40000000,
+    "min_pixels": 200704,
+    "max_pixels": 1003520
+  },
+  "generation_config": {
+    "precision": "nf4",
+    "do_sample": false,
+    "max_new_tokens": 240,
+    "attention": "sdpa",
+    "quantization": {
+      "library": "bitsandbytes",
+      "weight_type": "nf4",
+      "compute_dtype": "fp16",
+      "double_quant": true
+    }
+  },
+  "gate_versions": {
+    "legacy": "total-line-v1",
+    "contextual": "contextual-total-v1",
+    "contextual_min_line_confidence": 60
+  },
+  "environment": {
+    "python": "3.13.16",
+    "os": "Linux-6.18.55+-x86_64-with-glibc2.39",
+    "pillow": "13.0.0",
+    "gpu": {
+      "torch": "2.11.0+cu130",
+      "cuda": "13.0",
+      "transformers": "5.14.1",
+      "accelerate": "1.15.0",
+      "torchvision": "0.26.0+cu130",
+      "devices": [
+        {
+          "name": "Tesla T4",
+          "total_vram_bytes": 15636037632,
+          "compute_capability": [
+            7,
+            5
+          ]
+        },
+        {
+          "name": "Tesla T4",
+          "total_vram_bytes": 15636037632,
+          "compute_capability": [
+            7,
+            5
+          ]
+        }
+      ],
+      "bitsandbytes": "0.50.2"
+    }
+  },
+  "models": {
+    "3b": {
+      "model": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "revision": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+      "documents": 20,
+      "normalized_exact": {
+        "company": {
+          "count": 16,
+          "n": 20,
+          "rate": 0.8,
+          "wilson_95": [
+            0.5839825677481129,
+            0.9193423374202
+          ]
+        },
+        "date": {
+          "count": 20,
+          "n": 20,
+          "rate": 1.0,
+          "wilson_95": [
+            0.838874841947188,
+            0.9999999999999999
+          ]
+        },
+        "address": {
+          "count": 14,
+          "n": 20,
+          "rate": 0.7,
+          "wilson_95": [
+            0.4810271816464825,
+            0.8545227551323927
+          ]
+        },
+        "total": {
+          "count": 18,
+          "n": 20,
+          "rate": 0.9,
+          "wilson_95": [
+            0.6989663547715196,
+            0.9721335187862309
+          ]
+        },
+        "all_fields": {
+          "count": 11,
+          "n": 20,
+          "rate": 0.55,
+          "wilson_95": [
+            0.3420853424503473,
+            0.7418021417443715
+          ]
+        }
+      },
+      "address_format_tolerant": 17,
+      "inference_errors": 0,
+      "schema_valid": {
+        "count": 20,
+        "n": 20,
+        "rate": 1.0,
+        "wilson_95": [
+          0.838874841947188,
+          0.9999999999999999
+        ]
+      },
+      "gate_c": {
+        "coverage": {
+          "count": 3,
+          "n": 20,
+          "rate": 0.15,
+          "wilson_95": [
+            0.05236874589621804,
+            0.3604188647407503
+          ]
+        },
+        "selective_risk": {
+          "count": 0,
+          "n": 3,
+          "rate": 0.0,
+          "wilson_95": [
+            0,
+            0.561497031755032
+          ]
+        },
+        "review_workload": {
+          "count": 17,
+          "n": 20,
+          "rate": 0.85,
+          "wilson_95": [
+            0.6395811352592498,
+            0.9476312541037819
+          ]
+        },
+        "wrong_total_detected": {
+          "count": 2,
+          "n": 2,
+          "rate": 1.0,
+          "wilson_95": [
+            0.34238022750666547,
+            1
+          ]
+        },
+        "wrong_total_stopped_after_format": 2,
+        "missing_total": 0,
+        "false_pass_count": 0,
+        "correct_flagged_count": 8
+      },
+      "end_to_end_c_ms": {
+        "n": 20,
+        "p50": 10558.549,
+        "p95": 12536.634
+      },
+      "peak_vram": [
+        {
+          "device": 0,
+          "allocated_bytes": 1459409408,
+          "reserved_bytes": 2480930816
+        },
+        {
+          "device": 1,
+          "allocated_bytes": 1782057472,
+          "reserved_bytes": 2539651072
+        }
+      ]
+    },
+    "7b": {
+      "model": "Qwen/Qwen2.5-VL-7B-Instruct",
+      "revision": "cc594898137f460bfe9f0759e9844b3ce807cfb5",
+      "documents": 20,
+      "normalized_exact": {
+        "company": {
+          "count": 18,
+          "n": 20,
+          "rate": 0.9,
+          "wilson_95": [
+            0.6989663547715196,
+            0.9721335187862309
+          ]
+        },
+        "date": {
+          "count": 18,
+          "n": 20,
+          "rate": 0.9,
+          "wilson_95": [
+            0.6989663547715196,
+            0.9721335187862309
+          ]
+        },
+        "address": {
+          "count": 15,
+          "n": 20,
+          "rate": 0.75,
+          "wilson_95": [
+            0.5312991223812622,
+            0.8881382985923318
+          ]
+        },
+        "total": {
+          "count": 20,
+          "n": 20,
+          "rate": 1.0,
+          "wilson_95": [
+            0.838874841947188,
+            0.9999999999999999
+          ]
+        },
+        "all_fields": {
+          "count": 12,
+          "n": 20,
+          "rate": 0.6,
+          "wilson_95": [
+            0.3865815007622585,
+            0.7811934676271791
+          ]
+        }
+      },
+      "address_format_tolerant": 18,
+      "inference_errors": 0,
+      "schema_valid": {
+        "count": 20,
+        "n": 20,
+        "rate": 1.0,
+        "wilson_95": [
+          0.838874841947188,
+          0.9999999999999999
+        ]
+      },
+      "gate_c": {
+        "coverage": {
+          "count": 3,
+          "n": 20,
+          "rate": 0.15,
+          "wilson_95": [
+            0.05236874589621804,
+            0.3604188647407503
+          ]
+        },
+        "selective_risk": {
+          "count": 0,
+          "n": 3,
+          "rate": 0.0,
+          "wilson_95": [
+            0,
+            0.561497031755032
+          ]
+        },
+        "review_workload": {
+          "count": 17,
+          "n": 20,
+          "rate": 0.85,
+          "wilson_95": [
+            0.6395811352592498,
+            0.9476312541037819
+          ]
+        },
+        "wrong_total_detected": {
+          "count": 0,
+          "n": 0,
+          "rate": null,
+          "wilson_95": null
+        },
+        "wrong_total_stopped_after_format": 0,
+        "missing_total": 0,
+        "false_pass_count": 0,
+        "correct_flagged_count": 9
+      },
+      "end_to_end_c_ms": {
+        "n": 20,
+        "p50": 9790.339,
+        "p95": 11273.236
+      },
+      "peak_vram": [
+        {
+          "device": 0,
+          "allocated_bytes": 2231577088,
+          "reserved_bytes": 3661627392
+        },
+        {
+          "device": 1,
+          "allocated_bytes": 5071255040,
+          "reserved_bytes": 6333399040
+        }
+      ]
+    },
+    "32b": {
+      "model": "Qwen/Qwen2.5-VL-32B-Instruct",
+      "revision": "7cfb30d71a1f4f49a57592323337a4a4727301da",
+      "documents": 20,
+      "normalized_exact": {
+        "company": {
+          "count": 16,
+          "n": 20,
+          "rate": 0.8,
+          "wilson_95": [
+            0.5839825677481129,
+            0.9193423374202
+          ]
+        },
+        "date": {
+          "count": 18,
+          "n": 20,
+          "rate": 0.9,
+          "wilson_95": [
+            0.6989663547715196,
+            0.9721335187862309
+          ]
+        },
+        "address": {
+          "count": 14,
+          "n": 20,
+          "rate": 0.7,
+          "wilson_95": [
+            0.4810271816464825,
+            0.8545227551323927
+          ]
+        },
+        "total": {
+          "count": 20,
+          "n": 20,
+          "rate": 1.0,
+          "wilson_95": [
+            0.838874841947188,
+            0.9999999999999999
+          ]
+        },
+        "all_fields": {
+          "count": 9,
+          "n": 20,
+          "rate": 0.45,
+          "wilson_95": [
+            0.25819785825562847,
+            0.6579146575496526
+          ]
+        }
+      },
+      "address_format_tolerant": 17,
+      "inference_errors": 0,
+      "schema_valid": {
+        "count": 20,
+        "n": 20,
+        "rate": 1.0,
+        "wilson_95": [
+          0.838874841947188,
+          0.9999999999999999
+        ]
+      },
+      "gate_c": {
+        "coverage": {
+          "count": 3,
+          "n": 20,
+          "rate": 0.15,
+          "wilson_95": [
+            0.05236874589621804,
+            0.3604188647407503
+          ]
+        },
+        "selective_risk": {
+          "count": 0,
+          "n": 3,
+          "rate": 0.0,
+          "wilson_95": [
+            0,
+            0.561497031755032
+          ]
+        },
+        "review_workload": {
+          "count": 17,
+          "n": 20,
+          "rate": 0.85,
+          "wilson_95": [
+            0.6395811352592498,
+            0.9476312541037819
+          ]
+        },
+        "wrong_total_detected": {
+          "count": 0,
+          "n": 0,
+          "rate": null,
+          "wilson_95": null
+        },
+        "wrong_total_stopped_after_format": 0,
+        "missing_total": 0,
+        "false_pass_count": 0,
+        "correct_flagged_count": 6
+      },
+      "end_to_end_c_ms": {
+        "n": 20,
+        "p50": 30284.741,
+        "p95": 35307.549
+      },
+      "peak_vram": [
+        {
+          "device": 0,
+          "allocated_bytes": 8531011584,
+          "reserved_bytes": 10661920768
+        },
+        {
+          "device": 1,
+          "allocated_bytes": 13271548928,
+          "reserved_bytes": 15143534592
+        }
+      ]
+    }
+  },
+  "paired_against_7b": {
+    "3b": {
+      "company": {
+        "fixed": [],
+        "regressed": [
+          "X510056849111",
+          "X51006327960"
+        ]
+      },
+      "date": {
+        "fixed": [
+          "X51006619784",
+          "X51007231274"
+        ],
+        "regressed": []
+      },
+      "address": {
+        "fixed": [
+          "X51006334770"
+        ],
+        "regressed": [
+          "X51006327960",
+          "X51007231274"
+        ]
+      },
+      "total": {
+        "fixed": [],
+        "regressed": [
+          "X51006327960",
+          "X51006401845"
+        ]
+      },
+      "all_fields": {
+        "fixed": [
+          "X51006334770"
+        ],
+        "regressed": [
+          "X510056849111",
+          "X51006327960"
+        ]
+      },
+      "address_format_tolerant": {
+        "fixed": [],
+        "regressed": [
+          "X51006327960"
+        ]
+      }
+    },
+    "32b": {
+      "company": {
+        "fixed": [],
+        "regressed": [
+          "X510056849111",
+          "X51006349085"
+        ]
+      },
+      "date": {
+        "fixed": [
+          "X51006619784",
+          "X51007231274"
+        ],
+        "regressed": [
+          "X51006350737",
+          "X51007846310"
+        ]
+      },
+      "address": {
+        "fixed": [
+          "X51006334770",
+          "X51006350737"
+        ],
+        "regressed": [
+          "X51005677336",
+          "X51006327960",
+          "X51007231274"
+        ]
+      },
+      "total": {
+        "fixed": [],
+        "regressed": []
+      },
+      "all_fields": {
+        "fixed": [
+          "X51006334770"
+        ],
+        "regressed": [
+          "X51005677336",
+          "X510056849111",
+          "X51006327960",
+          "X51007846310"
+        ]
+      },
+      "address_format_tolerant": {
+        "fixed": [],
+        "regressed": [
+          "X51006327960"
+        ]
+      }
+    }
+  },
+  "recommendation": {
+    "status": "pilot",
+    "eligible": []
+  },
+  "source_reports_sha256": {
+    "3b": "1aae014b2685972f508c92666ac062b5164cf28e882201e612d6ccdacff4182b",
+    "7b": "d1753b6d9e4fdeb3f3e34a30d8e86bb68e031f553cddb204849bbbbd44ebf260",
+    "32b": "b46c54c16cf9ac7758e1a14a623606622d2c0c470b22ee4271a77735fa415613"
+  }
+}

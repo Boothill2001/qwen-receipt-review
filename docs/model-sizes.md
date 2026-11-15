@@ -31,3 +31,15 @@ Full-run portfolio thresholds:
 - The full report lists both models if both qualify and keeps 7B if neither qualifies. The 20-receipt pilot assigns no winner.
 
 Read paired address disagreements against the source scan before describing what improved. The format-tolerant score preserves word order, slashes and hyphens. Exact and tolerant scores stay separate. Potentially ambiguous source labels stay unchanged for the benchmark.
+
+## Measured pilot
+
+The three reports share 20 ordered SROIE receipt IDs and one dataset hash. All 60 attempts returned valid JSON. Review workload was 17 of 20 for each model, with three auto-passes each and zero incorrect among those passes.
+
+| NF4 model | Company exact | Date exact | Address exact | Total exact | All four exact | Gate C p50 / p95 | Peak allocated VRAM by GPU |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 3B | 16/20 | 20/20 | 14/20 | 18/20 | 11/20 | 10.56 / 12.54 s | 1.36 / 1.66 GiB |
+| 7B | 18/20 | 18/20 | 15/20 | 20/20 | 12/20 | 9.79 / 11.27 s | 2.08 / 4.72 GiB |
+| 32B | 16/20 | 18/20 | 14/20 | 20/20 | 9/20 | 30.28 / 35.31 s | 7.95 / 12.36 GiB |
+
+Against 7B, both 3B and 32B fixed zero format-tolerant address errors and regressed on the same receipt, `X51006327960`. On the scan the lot is `G23` and the road identifier is `SS6/4`. 3B returned `623` for the lot. 32B returned `556/4` for the road identifier. Each secondary model missed a different identifier. [Original address image region](../assets/model-size-address-evidence.png) · [Pilot comparison and report hashes](model-sizes-pilot-summary.json)

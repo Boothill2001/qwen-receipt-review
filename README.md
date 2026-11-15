@@ -77,7 +77,17 @@ The legacy OCR gate routed **288/337** Qwen predictions to review, including **1
 
 ### Why 7B?
 
-The 7B FP16 run establishes a measured starting point. The model-size experiment compares 3B, 7B and 32B with the same four-bit recipe, image settings and review policy. It tests whether lower inference cost or higher extraction quality is worth switching to. [Matched comparison protocol and selection thresholds](docs/model-sizes.md)
+On the same **20 SROIE pilot receipts**, 7B matched all four fields on 12, compared with 11 for 3B and 9 for 32B. The 32B p95 was 3.13× 7B's on the same dual-T4 runtime. All three used bitsandbytes NF4 with FP16 compute, separate from the FP16 reference above.
+
+| Qwen2.5-VL · NF4 | Address exact | Address format-tolerant | Total exact | All four exact | Review / wrong auto-passes | Gate C p95 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 3B | 14/20 | 17/20 | 18/20 | 11/20 | 17/20 · 0/3 | 12.54 s |
+| 7B | **15/20** | **18/20** | **20/20** | **12/20** | 17/20 · 0/3 | **11.27 s** |
+| 32B | 14/20 | 17/20 | **20/20** | 9/20 | 17/20 · 0/3 | 35.31 s |
+
+![Two address lines on SROIE receipt X51006327960 read LOT NO. G23 and JLN PERBANDARAN SS6/4.](assets/model-size-address-evidence.png)
+
+On this receipt, 3B read the lot as `623` and 32B read the road as `556/4`. 7B matched both printed identifiers. The pilot estimates the trade-off on these 20 images. The full comparison is needed to apply the model-selection thresholds. [Pilot comparison JSON](docs/model-sizes-pilot-summary.json) · [Protocol and resource measurements](docs/model-sizes.md)
 
 ## Measured pilot
 
