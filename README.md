@@ -1,6 +1,6 @@
 # Qwen Receipt Review
 
-**The total was correct. The receipt still needed a closer look.**
+**What changed when a new receipt batch arrived?**
 
 ![Recorded SROIE receipt with OCR evidence for 23.80 and an address missing the shopping gallery. Gate C passes the record.](assets/case-replay.png)
 
@@ -17,13 +17,14 @@ python -m streamlit run review_app.py
 
 In **Case replay**, select **Investigate the review spike**. The walkthrough runs on CPU with bundled assets.
 
-1. **Detect the spike.** On November 12, the simulated review rate rises to 64.0%. Reviewers correct 18 of 41 verified addresses, while total corrections stay at 2 of 37 verified amounts. An audit of auto-passes finds 2 incorrect records in a sample of 12.
+1. **Detect the spike.** A simulated new batch arrives on November 12 and the review rate rises to 64.0%. Reviewers correct 18 of 41 verified addresses, while total corrections stay at 2 of 37 verified amounts. An audit of auto-passes finds 2 incorrect records in a sample of 12.
 2. **Inspect the receipt.** Open the linked SROIE example. OCR supports `23.80`. Switch from gate B to C and watch the decision change to auto-pass even though the model omitted the shopping gallery from the address.
-3. **Decide whether to ship.** In a measured ten-receipt development test, the candidate prompt removed an extra `AEON SHAH ALAM` line on one receipt and added the `Bentong-2` branch header to a previously correct address. Exact address match stayed at 3/10. The candidate failed the clean-control check, so the original prompt stayed in place. [Experiment result](docs/evaluation.md#result-on-ten-diagnostic-receipts)
+3. **Test the recovery plan.** Run full-image Qwen and a second pass over the top 45% of each receipt. On 10 WildReceipt dev scans, both pipelines matched 8/10 exactly and 10/10 after formatting normalization. The crop fell back on all 10 scans. [Cross-dataset protocol and measured result](docs/drift.md#measured-result)
+4. **Make the rollout call.** Keep full-image extraction. The crop output omitted part of a previously correct SROIE address, taking the control score from 3/3 to 2/3. The change added 4.56 seconds at p95 on WildReceipt. The holdout and rollout stayed closed. [Measured run summary](docs/drift-dev-summary.json)
 
-![Monitoring tab labeled Simulated operations, with the November 12 spike selected and a button to open the recorded receipt.](assets/monitoring-incident.png)
+![Monitoring dashboard with the simulated review spike, measured WildReceipt and SROIE results, and the decision to keep full-image extraction.](assets/monitoring-incident.png)
 
-The daily workload and audit counts are simulated. The linked scan, predictions, and A/B result come from recorded Qwen runs.
+The daily workload and audit counts are simulated. The linked scan, predictions and paired comparison come from recorded Qwen runs.
 
 ## Input and output
 

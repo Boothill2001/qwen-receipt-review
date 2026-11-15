@@ -95,6 +95,18 @@ def audited_rows(manifest, audit, stage):
     return {"wildreceipt": external, "sroie": selected["sroie"]}
 
 
+def holdout_allowed(dev, manifest):
+    provenance = dev["provenance"]
+    expected_ids = [row["id"] for domain in ("wildreceipt", "sroie")
+                    for row in manifest["cohorts"]["dev"][domain]]
+    return (dev["stage"] == "dev" and dev["advance"] is True
+            and provenance["archive_sha256"] == manifest["archive_sha256"]
+            and provenance["model_revision"] == REVISION and provenance["crop_prompt"] == CROP_PROMPT
+            and provenance["baseline_prompt_text"] == PROMPT and provenance["crop_fraction"] == CROP_FRACTION
+            and provenance["max_pixels"] == MAX_PIXELS and list(provenance["cases"]) == expected_ids
+            and [row["key"] for row in dev["receipts"]] == expected_ids)
+
+
 def evaluate(wild, sroie, manifest, audit, stage, output):
     selected = audited_rows(manifest, audit, stage)
     by_id = {row["id"]: row for rows in selected.values() for row in rows}
@@ -144,9 +156,13 @@ def main():
     parser.add_argument("--sroie", required=True, type=Path)
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--audit", type=Path)
+    parser.add_argument("--dev-report", type=Path)
     parser.add_argument("--stage", choices=("prepare", "dev", "holdout"), required=True)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
+    inputs = {path.resolve() for path in (args.wild, args.sroie)}
+    if args.manifest.resolve() in inputs:
+        parser.error("The manifest path must be separate from the input archives")
     hashes = {"wildreceipt": sha256_file(args.wild), "sroie": sha256_file(args.sroie)}
     if hashes != {"wildreceipt": WILD_SHA, "sroie": ARCHIVE_SHA}:
         parser.error("Unexpected source archive SHA-256")
@@ -158,9 +174,22 @@ def main():
             return
         if not args.audit or not args.output or args.output.suffix != ".json":
             parser.error("Evaluation requires --audit and --output with a .json suffix")
+        inputs.update(path.resolve() for path in (args.manifest, args.audit, args.dev_report) if path)
+        checkpoint = args.output.with_suffix(".sqlite3")
+        if {args.output.resolve(), checkpoint.resolve()} & inputs:
+            parser.error("The report and checkpoint must be separate from the inputs")
+        if args.output.exists() and not checkpoint.exists():
+            parser.error("The output exists without its checkpoint. Use a fresh output path.")
         manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
-        if manifest["archive_sha256"] != hashes or manifest["cohorts"] != cohorts(wild, sroie):
+        if (manifest["archive_sha256"] != hashes or manifest["label_rule"] != RULE
+                or manifest["cohorts"] != cohorts(wild, sroie)):
             parser.error("Manifest differs from the deterministic archive selection")
+        if args.stage == "holdout" and (
+            not args.dev_report or not holdout_allowed(
+                json.loads(args.dev_report.read_text(encoding="utf-8")), manifest
+            )
+        ):
+            parser.error("Holdout requires a passing --dev-report from the same experiment")
         audit = json.loads(args.audit.read_text(encoding="utf-8"))
         args.output.parent.mkdir(parents=True, exist_ok=True)
         evaluate(wild, sroie, manifest, audit, args.stage, args.output)

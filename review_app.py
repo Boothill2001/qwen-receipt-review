@@ -29,6 +29,7 @@ METHODS = {"annotated-ocr": "Annotated OCR + rules", "tesseract": "Tesseract + r
            "qwen": "Qwen · checkpoint FP16", "ollama": "Qwen · Ollama quantized"}
 GATE_LABELS = dict(zip(GATES, ("A · Format only", "B · Legacy OCR", "C · Contextual OCR")))
 REPLAY_DIR = PROJECT / "assets" / "replay"
+DRIFT_REPORT = PROJECT / "docs" / "drift-dev-summary.json"
 
 
 def apply_gate(row, gate):
@@ -234,7 +235,13 @@ def prompt_decision():
         {"Receipt": "X51006441474", "Change": "Included the printed Bentong-2 branch header",
          "Result": "Regression"},
     ])
-    st.write("The candidate failed the clean-control check. Keep the original prompt and test a dedicated address crop next.")
+    st.write("The prompt candidate failed the clean-control check. A dedicated address crop was the next experiment.")
+    if DRIFT_REPORT.exists():
+        measured = json.loads(DRIFT_REPORT.read_text(encoding="utf-8"))
+        if measured["advance"]:
+            st.caption("WildReceipt crop follow-up · Passed development. Hold rollout until the external holdout is scored.")
+        else:
+            st.caption("WildReceipt crop follow-up · Hold rollout. The paired crop did not pass development.")
 
 
 def monitoring_view():
@@ -246,7 +253,7 @@ def monitoring_view():
                             format_func=lambda day: day.strftime("%b %d, %Y"), key="monitor_day")
     row = by_day[selected]
     if selected == INCIDENT_DAY:
-        st.warning("Review spike · Address checks drove most of the new review work.")
+        st.warning("Review spike · A new receipt batch arrived and address checks drove most of the new review work.")
         st.button("Open recorded receipt", type="primary", on_click=navigate, args=("Case replay", True),
                   help="Recorded SROIE benchmark example linked to illustrate the simulated incident.")
     ops = st.columns(3)
@@ -268,6 +275,38 @@ def monitoring_view():
         st.write(f"Total corrections · {verification_text(*row['total_edits'])}")
         st.write(f"Errors in sampled auto-passes · {verification_text(*row['auto_pass_audit'])}")
         st.caption("Corrections use verified fields as denominators. Auto-pass errors use audited receipts.")
+    if selected == INCIDENT_DAY:
+        drift_evaluation()
+
+
+def drift_evaluation():
+    st.subheader("Measured evaluation · SROIE and WildReceipt")
+    st.caption("Offline address experiment on real receipts. The incident timeline above is simulated.")
+    if not DRIFT_REPORT.exists():
+        st.info("The datasets and labels are prepared. Paired GPU results are pending.")
+        return
+    report = json.loads(DRIFT_REPORT.read_text(encoding="utf-8"))
+    comparison = []
+    for cohort, label in (("wildreceipt", "WildReceipt dev"), ("sroie", "SROIE controls")):
+        summary = report["metrics"][cohort]
+        exact = summary["exact"]
+        tolerant = summary["format_tolerant"]
+        n = summary["documents"]
+        comparison.append({
+            "Cohort": label, "Exact · Full → Crop": f"{exact['baseline']}/{n} → {exact['candidate']}/{n}",
+            "Format-tolerant · Full → Crop": f"{tolerant['baseline']}/{n} → {tolerant['candidate']}/{n}",
+            "Fixed / regressed (exact)": f"{exact['fixed']} / {exact['regressed']}",
+            "Fallbacks": f"{summary['fallbacks']}/{n}",
+            "Crop p95 added": f"{summary['added_ms']['p95'] / 1000:.2f} s",
+        })
+    st.table(comparison)
+    if report["advance"]:
+        st.info("Advance to holdout. Keep the current pipeline while the sealed test runs.")
+    else:
+        st.warning("Keep full-image extraction. The crop fixed no WildReceipt addresses and broke one SROIE control.")
+        st.write(f"In `{report['regression_id']}`, the second pass dropped the postcode and the rest of the address. "
+                 "Its non-empty JSON passed the fallback check.")
+    st.caption("The SROIE controls were selected for previously correct addresses. The cohort scores describe these samples.")
 
 
 def new_receipt():

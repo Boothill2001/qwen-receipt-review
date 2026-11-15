@@ -1,0 +1,90 @@
+{
+  "stage": "dev",
+  "advance": false,
+  "metrics": {
+    "wildreceipt": {
+      "documents": 10,
+      "exact": {
+        "baseline": 8,
+        "candidate": 8,
+        "fixed": 0,
+        "regressed": 0
+      },
+      "format_tolerant": {
+        "baseline": 10,
+        "candidate": 10,
+        "fixed": 0,
+        "regressed": 0
+      },
+      "fallbacks": 10,
+      "baseline_ms": {
+        "n": 10,
+        "p50": 5776.884,
+        "p95": 8427.245834
+      },
+      "added_ms": {
+        "n": 10,
+        "p50": 3792.566,
+        "p95": 4556.326888
+      }
+    },
+    "sroie": {
+      "documents": 3,
+      "exact": {
+        "baseline": 3,
+        "candidate": 2,
+        "fixed": 0,
+        "regressed": 1
+      },
+      "format_tolerant": {
+        "baseline": 3,
+        "candidate": 2,
+        "fixed": 0,
+        "regressed": 1
+      },
+      "fallbacks": 2,
+      "baseline_ms": {
+        "n": 3,
+        "p50": 9489.221,
+        "p95": 9817.349369
+      },
+      "added_ms": {
+        "n": 3,
+        "p50": 5112.675,
+        "p95": 5392.853797
+      }
+    }
+  },
+  "receipt_ids": [
+    "wildreceipt:train:image_files/Image_71/5/83e0b0de45cfce506f279cf071259b3cdc32ac13.jpeg",
+    "wildreceipt:train:image_files/Image_79/7/3b580cb6ae1f2a58bd043e7ecdd05e78416de4aa.jpeg",
+    "wildreceipt:train:image_files/Image_64/4/2306.jpeg",
+    "wildreceipt:train:image_files/Image_28/14/39042dc9ebd672d287fe4c4cdf8a904ca5cea663.jpeg",
+    "wildreceipt:train:image_files/Image_24/13/837dc98ba415af6e922c99913641f2170f70eccf.jpeg",
+    "wildreceipt:train:image_files/Image_84/8/3242ec54d007ba1597d8f240cd91513f8eb44220.jpeg",
+    "wildreceipt:train:image_files/Image_60/20/f3149ab2b4504cf05cb77769c8b3c3eccde7e252.jpeg",
+    "wildreceipt:train:image_files/Image_17/12/01a645e7b7a5179f2fc6c3d22242a43b67eb92ae.jpeg",
+    "wildreceipt:train:image_files/Image_52/19/de415d445cc0c80847a0cae01960bb0f9dd0a13d.jpeg",
+    "wildreceipt:train:image_files/Image_24/13/7d7af605dcd6ef030a59e01cf2c7e62b651fba28.jpeg",
+    "sroie:X51006388065",
+    "sroie:X51006441474",
+    "sroie:X51008164997"
+  ],
+  "fallback_reasons": {
+    "MissingAddress": 12
+  },
+  "regression_id": "X51006388065",
+  "provenance": {
+    "archive_sha256": {
+      "wildreceipt": "f47646e16033d95c85a0b3a180a39d90cc354a729e51a280211b2fe7cae532bd",
+      "sroie": "e4502ab884e5fe49e138673f16f6fa72ae0d5fa1d59a2b59a860a2d75e534844"
+    },
+    "code_commit": "f3eecf041d2f42b687fd474465555cc8eb02574a",
+    "model": "Qwen/Qwen2.5-VL-7B-Instruct",
+    "model_revision": "cc594898137f460bfe9f0759e9844b3ce807cfb5",
+    "runtime": "Kaggle · 2 × Tesla T4 · FP16 · torch 2.11.0+cu130 · transformers 5.14.1",
+    "crop_fraction": 0.45,
+    "report_sha256": "72fc34cdb183a33b9d45692671f815fa32a665e8aa38764e9fb079d57c436aa5",
+    "label_audit_sha256": "9cc99914ca92ed1f683e9a04cfba44e276a526ff02f97af897ab20e7768308f0"
+  }
+}

@@ -5,7 +5,9 @@ import pytest
 from PIL import Image
 
 from drift_data import is_duplicate, reading_order
-from drift_experiment import CROP_PROMPT, audited_rows, score, stats
+from benchmark_receipts import REVISION
+from drift_experiment import CROP_FRACTION, CROP_PROMPT, audited_rows, decision, holdout_allowed, score, stats
+from receipt_pipeline import MAX_PIXELS, PROMPT
 
 
 def test_reading_order_and_duplicate_filter():
@@ -41,3 +43,24 @@ def test_audit_does_not_silently_score_unverified_addresses():
     manifest = {"cohorts": {"dev": {"wildreceipt": [{"id": "external"}], "sroie": []}}}
     with pytest.raises(ValueError, match="Missing verified address"):
         audited_rows(manifest, {}, "dev")
+
+
+def test_holdout_gate_requires_matching_passing_development_evidence():
+    manifest = {"archive_sha256": {"wildreceipt": "digest"},
+                "cohorts": {"dev": {"wildreceipt": [{"id": "a"}], "sroie": [{"id": "b"}]}}}
+    dev = {"stage": "dev", "advance": True, "receipts": [{"key": "a"}, {"key": "b"}],
+           "provenance": {"archive_sha256": manifest["archive_sha256"], "model_revision": REVISION,
+                          "crop_prompt": CROP_PROMPT, "baseline_prompt_text": PROMPT,
+                          "crop_fraction": CROP_FRACTION, "max_pixels": MAX_PIXELS, "cases": {"a": {}, "b": {}}}}
+    assert holdout_allowed(dev, manifest)
+    assert not holdout_allowed({**dev, "advance": False}, manifest)
+    dev["provenance"]["crop_fraction"] = 0.5
+    assert not holdout_allowed(dev, manifest)
+
+
+def test_development_rejects_a_regressed_control_even_when_external_improves():
+    external = {"exact": {"baseline": 4, "candidate": 5}, "format_tolerant": {"fixed": 1}}
+    controls = {"documents": 3, "exact": {"baseline": 3, "regressed": 0}}
+    assert decision("dev", external, controls)
+    controls["exact"]["regressed"] = 1
+    assert not decision("dev", external, controls)
