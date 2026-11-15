@@ -25,6 +25,12 @@ from receipt_pipeline import (
 )
 
 REVISION = "cc594898137f460bfe9f0759e9844b3ce807cfb5"
+MODEL_SIZES = {
+    "3b": ("Qwen/Qwen2.5-VL-3B-Instruct", "66285546d2b821cf421d4f5eb2576359d3770cd3"),
+    "7b": (MODEL, REVISION),
+    "32b": ("Qwen/Qwen2.5-VL-32B-Instruct", "7cfb30d71a1f4f49a57592323337a4a4727301da"),
+}
+PRECISIONS = ("fp16", "nf4")
 ARCHIVE_SHA = "e4502ab884e5fe49e138673f16f6fa72ae0d5fa1d59a2b59a860a2d75e534844"
 SEED = 42
 COHORTS = {"smoke": ("train", 1), "dev": ("train", 50), "pilot": ("test", 20), "full": ("test", 0)}
@@ -193,19 +199,22 @@ def cuda_runtime():
     }
 
 
-def load_qwen(png, max_pixels, prompt):
+def load_qwen(png, max_pixels, prompt, model_id=MODEL, revision=REVISION, precision="fp16"):
     from torch import cuda
 
     for device in range(cuda.device_count()):
         cuda.reset_peak_memory_stats(device)
     started = time.perf_counter()
-    backend = QwenBackend(revision=REVISION, max_pixels=max_pixels, profile=True, prompt=prompt)
+    backend = QwenBackend(model_id=model_id, revision=revision, max_pixels=max_pixels, profile=True,
+                          prompt=prompt, precision=precision)
     backend.synchronize()
-    if backend.revision != REVISION:
+    if backend.revision != revision:
         raise RuntimeError(f"Model resolved unexpected revision {backend.revision}")
     device_map = {name: str(device) for name, device in backend.model.hf_device_map.items()}
     if any(not (device.isdecimal() or device.startswith("cuda")) for device in device_map.values()):
-        raise RuntimeError("FP16 checkpoint has offloaded weights. Use a CUDA runtime with more available VRAM.")
+        raise RuntimeError("The checkpoint has offloaded weights. Use a CUDA runtime with more available VRAM.")
+    if precision == "nf4" and not getattr(backend.model, "is_loaded_in_4bit", False):
+        raise RuntimeError("The checkpoint did not load with 4-bit quantization.")
     load_ms = elapsed(started)
 
     def peaks():
@@ -239,7 +248,8 @@ def atomic_json(path, report):
         temporary.unlink(missing_ok=True)
 
 
-def run(archive_path, output, method, cohort, max_pixels=MAX_PIXELS, prompt_version=PROMPT_VERSION):
+def run(archive_path, output, method, cohort, max_pixels=MAX_PIXELS, prompt_version=PROMPT_VERSION,
+        model_size="7b", precision="fp16"):
     archive_path, output = Path(archive_path), Path(output)
     archive_sha = sha256_file(archive_path)
     if archive_sha != ARCHIVE_SHA:
@@ -250,6 +260,11 @@ def run(archive_path, output, method, cohort, max_pixels=MAX_PIXELS, prompt_vers
         raise ValueError("Alternative prompt versions require the Qwen backend")
     if cohort == "address-dev10" and (method != "qwen" or max_pixels != MAX_PIXELS):
         raise ValueError("Address dev10 requires Qwen with the original image budget")
+    if method != "qwen" and (model_size, precision) != ("7b", "fp16"):
+        raise ValueError("Model size and precision options require the Qwen backend")
+    model_id, revision = MODEL_SIZES[model_size]
+    if precision not in PRECISIONS:
+        raise ValueError(f"Unknown precision: {precision}")
     if output.suffix.lower() != ".json":
         raise ValueError("Use a .json path for the final report")
     checkpoint = output.with_suffix(".sqlite3")
@@ -266,14 +281,14 @@ def run(archive_path, output, method, cohort, max_pixels=MAX_PIXELS, prompt_vers
             "code_sha256": {name: sha256_file(Path(__file__).with_name(name)) for name in
                             ("receipt_pipeline.py", "benchmark_receipts.py", "evaluation_metrics.py",
                              "address_protocol.py")},
-            "model": MODEL if method == "qwen" else None,
-            "model_revision": REVISION if method == "qwen" else None,
+            "model": model_id if method == "qwen" else None,
+            "model_revision": revision if method == "qwen" else None,
             "prompt_version": prompt_version if method == "qwen" else None,
             "prompt": PROMPTS[prompt_version] if method == "qwen" else None,
             "image_config": {"max_edge": IMAGE_MAX_EDGE, "source_max_pixels": IMAGE_MAX_PIXELS,
                              "min_pixels": MIN_PIXELS if method == "qwen" else None,
                              "max_pixels": max_pixels if method == "qwen" else None},
-            "generation_config": {"precision": "fp16", "do_sample": False, "max_new_tokens": MAX_NEW_TOKENS,
+            "generation_config": {"precision": precision, "do_sample": False, "max_new_tokens": MAX_NEW_TOKENS,
                                   "attention": "sdpa"} if method == "qwen" else None,
             "ocr_config": {"version": ocr.version, "language": "eng", "psm": 6},
             "gate_versions": {"legacy": TOTAL_EVIDENCE_VERSION, "contextual": CONTEXT_GATE_VERSION,
@@ -281,6 +296,11 @@ def run(archive_path, output, method, cohort, max_pixels=MAX_PIXELS, prompt_vers
             "environment": {"python": platform.python_version(), "os": platform.platform(),
                             "pillow": version("pillow"), "gpu": cuda_runtime() if method == "qwen" else None},
         }
+        if precision == "nf4":
+            config["generation_config"]["quantization"] = {
+                "library": "bitsandbytes", "weight_type": "nf4", "compute_dtype": "fp16", "double_quant": True,
+            }
+            config["environment"]["gpu"]["bitsandbytes"] = version("bitsandbytes")
         backend = peaks = None
 
         def initialize():
@@ -289,7 +309,8 @@ def run(archive_path, output, method, cohort, max_pixels=MAX_PIXELS, prompt_vers
                 # Fixed train image warms the runtime without consuming or inspecting test labels.
                 warmup = sample(inventory(archive), "train", 1, SEED)[0]
                 backend, profile, peaks = load_qwen(
-                    prepare_image(archive.read(warmup.image)), max_pixels, PROMPTS[prompt_version]
+                    prepare_image(archive.read(warmup.image)), max_pixels, PROMPTS[prompt_version],
+                    model_id, revision, precision,
                 )
                 return {"warmup_id": warmup.key, **profile}
             return {}
@@ -306,7 +327,7 @@ def run(archive_path, output, method, cohort, max_pixels=MAX_PIXELS, prompt_vers
             rows, sessions = collect(db, config["receipt_ids"], score_id, initialize)
         duration_ms = sum(row["timings_ms"]["evaluation_wall"] for row in rows)
         report = {
-            **config, "runtime": "transformers-fp16" if method == "qwen" else "tesseract",
+            **config, "runtime": f"transformers-{precision}" if method == "qwen" else "tesseract",
             "summary": summarize(rows), "metrics": metrics(rows), "sessions": sessions, "receipts": rows,
             "evaluation_documents_per_second": round(1000 * len(rows) / duration_ms, 3) if duration_ms else None,
             "merchant_groups": {group: summarize([row for row in rows if row["merchant_group"] == group])
@@ -326,10 +347,13 @@ def main():
     parser.add_argument("--cohort", choices=COHORTS, required=True)
     parser.add_argument("--max-pixels", default=MAX_PIXELS, type=int)
     parser.add_argument("--prompt-version", choices=PROMPTS, default=PROMPT_VERSION)
+    parser.add_argument("--model-size", choices=MODEL_SIZES, default="7b")
+    parser.add_argument("--precision", choices=PRECISIONS, default="fp16")
     args = parser.parse_args()
     if args.max_pixels < MIN_PIXELS or (args.method != "qwen" and args.max_pixels != MAX_PIXELS):
         parser.error("--max-pixels is a Qwen option and must be at least the processor minimum")
-    run(args.archive, args.output, args.method, args.cohort, args.max_pixels, args.prompt_version)
+    run(args.archive, args.output, args.method, args.cohort, args.max_pixels, args.prompt_version,
+        args.model_size, args.precision)
 
 
 if __name__ == "__main__":

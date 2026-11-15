@@ -324,7 +324,7 @@ class QwenBackend:
     """Loads the official checkpoint once. Requires a CUDA notebook for this recipe."""
 
     def __init__(self, model_id=MODEL, revision=None, max_pixels=MAX_PIXELS, adapter=None, profile=False,
-                 prompt=PROMPT):
+                 prompt=PROMPT, precision="fp16"):
         import torch
         import transformers
         from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
@@ -340,9 +340,19 @@ class QwenBackend:
         self.processor = AutoProcessor.from_pretrained(
             model_id, revision=revision, min_pixels=MIN_PIXELS, max_pixels=max_pixels
         )
+        load_options = {}
+        if precision == "nf4":
+            from transformers import BitsAndBytesConfig
+
+            load_options["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True, bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.float16, bnb_4bit_use_double_quant=True,
+            )
+        elif precision != "fp16":
+            raise ValueError(f"Unknown precision: {precision}")
         self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             model_id, revision=revision, dtype=torch.float16, device_map="auto",
-            attn_implementation="sdpa",
+            attn_implementation="sdpa", **load_options,
         ).eval()
         self.revision = getattr(self.model.config, "_commit_hash", None) or revision
         if adapter:
