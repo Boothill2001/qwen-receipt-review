@@ -210,7 +210,14 @@ def load_qwen(png, max_pixels, prompt, model_id=MODEL, revision=REVISION, precis
     backend.synchronize()
     if backend.revision != revision:
         raise RuntimeError(f"Model resolved unexpected revision {backend.revision}")
-    device_map = {name: str(device) for name, device in backend.model.hf_device_map.items()}
+    placement = getattr(backend.model, "hf_device_map", None)
+    if placement:
+        device_map = {name: str(device) for name, device in placement.items()}
+    else:
+        devices = {str(parameter.device) for parameter in backend.model.parameters()}
+        if len(devices) != 1:
+            raise RuntimeError("The checkpoint has no device map or single-device parameter placement.")
+        device_map = {"": devices.pop()}
     if any(not (device.isdecimal() or device.startswith("cuda")) for device in device_map.values()):
         raise RuntimeError("The checkpoint has offloaded weights. Use a CUDA runtime with more available VRAM.")
     if precision == "nf4" and not getattr(backend.model, "is_loaded_in_4bit", False):
