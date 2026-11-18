@@ -1,12 +1,20 @@
 # Qwen Receipt Review
 
-**What changed when a new receipt batch arrived?**
+**The total was right. The address was still wrong.**
+
+On recorded receipt `X51005719857`, Qwen extracted **23.80**, which Tesseract confirmed from the scan. The amount check passed, but the JSON omitted **PUBLIKA SHOPPING GALLERY** from the address. This receipt shows what a single-field check can actually verify.
+
+| Input | Output | Engineering decision |
+| --- | --- | --- |
+| Receipt scan | Four JSON fields, an OCR evidence region, and a review decision | Keep full-image Qwen and field-level review. The address crop lost a previously correct control and added **4.56 seconds at p95** on the WildReceipt development trial. |
+
+On **337 paired SROIE receipts**, Qwen 7B got all four fields right on **185**, versus **4** for Tesseract with rules. The faster Tesseract path took a median **1.16 s**, versus **10.59 s** for Qwen with the legacy OCR gate. [Benchmark details](#full-benchmark) · [Crop experiment](docs/drift.md#measured-result)
+
+**Try the recorded case.** Double-click [`start.bat`](start.bat), select **Investigate the review spike**, then open the linked receipt. The bundled case runs on CPU with saved Qwen predictions.
 
 ![Recorded SROIE receipt with OCR evidence for 23.80 and an address missing the shopping gallery. Gate C passes the record.](assets/case-replay.png)
 
-Qwen2.5-VL turns receipt scans into structured JSON. Tesseract checks the amount against the scan, and a reviewer can correct fields before export. In this recorded case, the total check passes while the address is incomplete.
-
-[Walk through the incident](#walk-through-the-incident) · [Input and output](#input-and-output) · [Full benchmark](#full-benchmark) · [Reproduce](docs/evaluation.md#reproduce)
+[Walk through the incident](#walk-through-the-incident) · [Input and output](#input-and-output) · [Reproduce](docs/evaluation.md#reproduce)
 
 ## Walk through the incident
 
@@ -14,6 +22,8 @@ Qwen2.5-VL turns receipt scans into structured JSON. Tesseract checks the amount
 python -m pip install -r requirements-review.txt
 python -m streamlit run review_app.py
 ```
+
+**Windows quick start.** Double-click `start.bat`. It creates a local Python 3.11 environment when needed and opens the review app after Streamlit is ready. The included recorded cases run without Ollama. Configure Ollama and download the Qwen model tag to extract fields from newly uploaded receipts.
 
 In **Case replay**, select **Investigate the review spike**. The walkthrough runs on CPU with bundled assets.
 
